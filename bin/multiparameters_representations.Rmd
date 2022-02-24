@@ -1,0 +1,296 @@
+---
+title: "Multiparameters_representation"
+author: "Romuald"
+date: "19/01/2022"
+output: html_document
+---
+
+```{r Libraries, message=F, echo=FALSE, warning=FALSE, results='hide'}
+
+library(Signac)
+library(Seurat)
+library(GenomeInfoDb)
+library(EnsDb.Hsapiens.v86)# v.86= hg38 | v.75=hg19
+library(ggplot2)
+library(patchwork)
+library(readr)
+library(dplyr)
+
+```
+
+```{r Function definition}
+
+loadRData<-function(fileName){
+  #loads an RData file, and returns it
+  load(fileName)
+  get(ls()[ls()!="fileName"])
+  
+}
+
+save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width, height){
+  
+  syst_time = format(Sys.time(), "%Y_%m_%d_%Hh")
+  
+  if(file_type == "rda"){
+    
+    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+      
+      save(
+        object, 
+        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".rda"))
+    }
+    
+    else{ 
+      
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      dir.create(new_dir)
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      dir.create(new_dir)
+      save(object, file = paste0(new_dir, "/" , deparse(substitute(object)), ".rda"))
+      
+    }
+  }
+  
+  if(file_type == "csv"){
+    
+    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+      
+      write_csv2(
+        x = object, 
+        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".csv"))
+    }
+    
+    else{ 
+      
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      dir.create(new_dir)
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      dir.create(new_dir)
+      write_csv2(
+        x = object, 
+        file = paste0(new_dir, "/" , deparse(substitute(object)), ".csv"))
+      
+    }
+  }
+  
+  if(file_type == "plot"){
+    
+    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+      
+      ggsave(
+        object,
+        filename = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".svg"),
+        width = width,
+        height = height,
+        units = "mm")
+    }
+    
+    else{
+      
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      dir.create(new_dir)
+      
+      ggsave(
+        object,
+        filename = paste0(new_dir, "/" , deparse(substitute(object)), ".svg"),
+        width = width,
+        height = height,
+        units = "mm")
+      
+    }
+  }
+}
+
+last_file_generated = function(parent_folder, pattern){
+  
+  dir = list.dirs(path = parent_folder, recursive = F)
+  dir = dir[length(dir)]
+
+  files = list.files(
+    path = dir,
+    pattern = pattern,
+    full.names = T)
+  
+  return(files)
+}
+
+```
+
+```{r Umap (Seurat) with all peaks}
+
+# scATAC countmatrix path
+sc_count_matrix = last_file_generated(
+    parent_folder = "~/Bureau/sc_ATAC_analysis/exp/hg19_cells_peaks_matrix",
+    pattern = "df_hg19")
+
+sc_count_matrix = loadRData(sc_count_matrix)
+
+seurat_sc_all = CreateSeuratObject(
+  counts = sc_count_matrix,
+  assay = "MP",
+  min.cells = 100,
+  min.features = 200)
+
+seurat_sc_all <- RunTFIDF(seurat_sc_all)
+seurat_sc_all <- FindTopFeatures(seurat_sc_all, min.cutoff = 'q0')
+seurat_sc_all <- RunSVD(seurat_sc_all)
+
+DepthCor(seurat_sc_all)
+
+seurat_sc_all <- RunUMAP(object = seurat_sc_all, reduction = 'lsi', dims = 2:30)
+seurat_sc_all <- FindNeighbors(object = seurat_sc_all, reduction = 'lsi', dims = 2:30)
+seurat_sc_all <- FindClusters(object = seurat_sc_all, verbose = FALSE, algorithm = 3)
+DimPlot(object = seurat_sc_all, label = TRUE) + NoLegend()
+
+```
+
+```{r Umap (Seurat) with all promoter peaks}
+
+# Promoter peaks path
+sc_prom_peaks = last_file_generated(
+  parent_folder = "~/Bureau/sc_ATAC_analysis/exp/sc_vs_bulk_overlap/",
+  pattern = "prom_peaks.csv" )
+
+# Load Promoter peaks path
+sc_prom_peaks = read_csv2(sc_prom_peaks)
+
+# scATAC countmatrix path
+sc_count_matrix = last_file_generated(
+    parent_folder = "~/Bureau/sc_ATAC_analysis/exp/hg19_cells_peaks_matrix",
+    pattern = "df_hg19")
+
+sc_count_matrix = loadRData(sc_count_matrix)
+
+# Subset prom peaks only in count matrix
+sc_count_matrix_prom = sc_count_matrix[which(rownames(sc_count_matrix) %in% sc_prom_peaks$peak_name),]
+
+seurat_sc_prom = CreateSeuratObject(
+  counts = sc_count_matrix_prom,
+  assay = "MP",
+  min.features = 200)
+
+seurat_sc_prom <- RunTFIDF(seurat_sc_prom)
+seurat_sc_prom <- FindTopFeatures(seurat_sc_prom, min.cutoff = 'q0')
+seurat_sc_prom <- RunSVD(seurat_sc_prom)
+
+
+DepthCor(seurat_sc_prom)
+
+seurat_sc_prom <- RunUMAP(object = seurat_sc_prom, reduction = 'lsi', dims = 2:30)
+seurat_sc_prom <- FindNeighbors(object = seurat_sc_prom, reduction = 'lsi', dims = 2:30)
+seurat_sc_prom <- FindClusters(object = seurat_sc_prom, verbose = FALSE, algorithm = 3)
+DimPlot(object = seurat_sc_prom, label = TRUE) + NoLegend()
+
+```
+
+```{r Umap (Seurat) with bulk overlapped promoter peaks}
+
+# Promoter peaks path
+sc_prom_peaks = last_file_generated(
+  parent_folder = "~/Bureau/sc_ATAC_analysis/exp/sc_vs_bulk_overlap/",
+  pattern = "prom_peaks.csv" )
+
+# Load Promoter peaks path
+sc_prom_peaks = read_csv2(sc_prom_peaks)
+sc_prom_peaks = sc_prom_peaks %>% filter(overlap_bulk_at_24h == TRUE)
+
+# scATAC countmatrix path
+sc_count_matrix = last_file_generated(
+    parent_folder = "~/Bureau/sc_ATAC_analysis/exp/hg19_cells_peaks_matrix",
+    pattern = "df_hg19")
+
+sc_count_matrix = loadRData(sc_count_matrix)
+
+# Subset prom peaks only in count matrix
+sc_count_matrix_prom = sc_count_matrix[which(rownames(sc_count_matrix) %in% sc_prom_peaks$peak_name),]
+
+seurat_sc_prom = CreateSeuratObject(
+  counts = sc_count_matrix_prom,
+  assay = "MP",
+  min.cells = 500,
+  min.features = 200)
+
+seurat_sc_prom <- RunTFIDF(seurat_sc_prom)
+seurat_sc_prom <- FindTopFeatures(seurat_sc_prom, min.cutoff = 'q25')
+seurat_sc_prom <- RunSVD(seurat_sc_prom) # Single-value decomposit = dimension reduction
+
+DepthCor(seurat_sc_prom)
+
+seurat_sc_prom <- RunUMAP(object = seurat_sc_prom, reduction = 'lsi', dims = 2:30)
+seurat_sc_prom <- FindNeighbors(object = seurat_sc_prom, reduction = 'lsi', dims = 2:30)
+seurat_sc_prom <- FindClusters(object = seurat_sc_prom, verbose = FALSE, algorithm = 3,resolution = 0.5)
+DimPlot(object = seurat_sc_prom, label = TRUE) + NoLegend()
+
+```
+
+```{r Umap (Seurat) with intergenic peaks}
+
+# intergenic peaks path
+sc_intergenic_peaks = last_file_generated(
+  parent_folder = "~/Bureau/sc_ATAC_analysis/exp/sc_vs_bulk_overlap/",
+  pattern = "intergenic_peaks.csv" )
+
+# Load intergenic peaks path
+sc_intergenic_peaks = read_csv2(sc_intergenic_peaks)
+
+# scATAC countmatrix path
+sc_count_matrix = last_file_generated(
+    parent_folder = "~/Bureau/sc_ATAC_analysis/exp/hg19_cells_peaks_matrix",
+    pattern = "df_hg19")
+
+sc_count_matrix = loadRData(sc_count_matrix)
+
+# Subset intergenic peaks only in count matrix
+sc_count_matrix_intergenic = sc_count_matrix[which(rownames(sc_count_matrix) %in% sc_intergenic_peaks$peak_name),]
+
+seurat_sc_intergenic = CreateSeuratObject(
+  counts = sc_count_matrix_intergenic,
+  assay = "MP",
+  min.cells = 100,
+  min.features = 200)
+
+seurat_sc_intergenic <- RunTFIDF(seurat_sc_intergenic)
+seurat_sc_intergenic <- FindTopFeatures(seurat_sc_intergenic, min.cutoff = 'q0')
+seurat_sc_intergenic <- RunSVD(seurat_sc_intergenic)
+
+DepthCor(seurat_sc_intergenic)
+
+seurat_sc_intergenic <- RunUMAP(object = seurat_sc_intergenic, reduction = 'lsi', dims = 2:30)
+seurat_sc_intergenic <- FindNeighbors(object = seurat_sc_intergenic, reduction = 'lsi', dims = 2:30)
+seurat_sc_intergenic <- FindClusters(object = seurat_sc_intergenic, verbose = FALSE, algorithm = 3)
+DimPlot(object = seurat_sc_intergenic, label = TRUE) + NoLegend()
+
+```
+
+```{r}
+
+counts <- Seurat::Read10X_h5(filename = "~/Bureau/Bordel_sc_ATAC/scATAC_raw_data/ATAC_Ctrl_MP/filtered_peak_bc_matrix.h5")
+
+
+chrom_assay <- CreateChromatinAssay(
+  counts = counts,
+  sep = c(":", "-"),
+  genome = 'hg38',
+  fragments = '~/Bureau/Bordel_sc_ATAC/scATAC_raw_data/ATAC_Ctrl_MP/fragments.tsv.gz',
+  min.cells = 100,
+  min.features = 200
+)
+
+MP <- CreateSeuratObject(
+  counts = chrom_assay,
+  assay = "peaks")
+
+MP[['peaks']]
+
+# extract gene annotations from EnsDb
+annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v75)
+
+# change to UCSC style since the data was mapped to hg19
+seqlevelsStyle(annotations) <- 'UCSC'
+
+# add the gene information to the object
+Annotation(MP) <- annotations
+
+```
+
+

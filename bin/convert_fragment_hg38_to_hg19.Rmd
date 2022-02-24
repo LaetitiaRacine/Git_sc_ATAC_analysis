@@ -1,0 +1,44 @@
+---
+title: "hg38 to hg 19 fragment"
+author: "Romuald"
+date: "26/01/2022"
+output: html_document
+---
+
+```{r}
+
+require(liftOver)
+require(rtracklayer)
+require(gwascat)
+require(dplyr)
+
+```
+
+```{r}
+
+path = system.file(package="liftOver", "extdata", "hg38ToHg19.over.chain")
+ch = import.chain(path)
+ch
+
+```
+```{r}
+
+data<-as.data.frame(fread("~/Bureau/Bordel_sc_ATAC/scATAC_raw_data/ATAC_Ctrl_MP/data.tsv"))
+colnames(data) = c("seqnames","start","end","Cell_bc","nb_reads")
+
+fragment_gr = GRanges(
+  seqnames = data$seqnames,
+  ranges = IRanges(start = data$start, end = data$end))
+
+mcols(fragment_gr) = tibble(cell_bc = data$Cell_bc, nb_read = data$nb_reads)
+genome(fragment_gr) ="hg38"
+
+seqlevelsStyle(fragment_gr) = "UCSC"
+fragment_gr_hg19 = liftOver(fragment_gr, ch)
+
+fragment_gr_hg19 = unlist(fragment_gr_hg19)
+genome(fragment_gr_hg19) = "hg19"
+
+
+``` 
+

@@ -1,0 +1,399 @@
+---
+title: "sc_vs_bulk_overlap"
+author: "Romuald"
+date: "19/01/2022"
+output: html_document
+---
+
+```{r Libraries, message=F, echo=FALSE, warning=FALSE, results='hide'}
+
+library(readr)
+library(GenomicRanges)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(ggthemes)
+library(svglite)
+
+```
+
+```{r Function definition}
+
+loadRData<-function(fileName){
+  #loads an RData file, and returns it
+  load(fileName)
+  get(ls()[ls()!="fileName"])
+  
+}
+
+save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width, height){
+  
+  syst_time = format(Sys.time(), "%Y_%m_%d_%Hh")
+  
+  if(file_type == "rda"){
+    
+    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+      
+      save(
+        object, 
+        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".rda"))
+    }
+    
+    else{ 
+      
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      dir.create(new_dir)
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      dir.create(new_dir)
+      save(object, file = paste0(new_dir, "/" , deparse(substitute(object)), ".rda"))
+      
+    }
+  }
+  
+  if(file_type == "csv"){
+    
+    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+      
+      write_csv2(
+        x = object, 
+        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".csv"))
+    }
+    
+    else{ 
+      
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      dir.create(new_dir)
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      dir.create(new_dir)
+      write_csv2(
+        x = object, 
+        file = paste0(new_dir, "/" , deparse(substitute(object)), ".csv"))
+      
+    }
+  }
+  
+  if(file_type == "plot"){
+    
+    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+      
+      ggsave(
+        object,
+        filename = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".svg"),
+        width = width,
+        height = height,
+        units = "mm")
+    }
+    
+    else{
+      
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      dir.create(new_dir)
+      
+      ggsave(
+        object,
+        filename = paste0(new_dir, "/" , deparse(substitute(object)), ".svg"),
+        width = width,
+        height = height,
+        units = "mm")
+      
+    }
+  }
+}
+
+last_file_generated = function(parent_folder, pattern){
+  
+  dir = list.dirs(path = parent_folder, recursive = F)
+  dir = dir[length(dir)]
+
+  files = list.files(
+    path = dir,
+    pattern = pattern,
+    full.names = T)
+  
+  return(files)
+}
+
+```
+
+```{r Load and generate Granges, message=F, results='hide', warning=F}
+
+bulk_peaks_24h = last_file_generated(
+  parent_folder = "/media/rparmentier/Elements/DATA_MARS-ATAC/ATACseq",
+  pattern = "peaks_intersection_24h_MP_ann.csv")
+    
+# General list (union) of peaks obtained in bulk ATAC
+bulk_peaks_24h <- read_delim(
+  "/media/rparmentier/Elements/DATA_MARS-ATAC/ATACseq/peaks_intersection_24h_MP_ann.csv",
+  delim = ";", escape_double = FALSE, trim_ws = TRUE, show_col_types = FALSE)
+
+# Transform it into a Grange
+bulk_peaks_24h_gr = GRanges(
+  seqnames = bulk_peaks_24h$seqnames,
+  ranges = IRanges(start = bulk_peaks_24h$start, end = bulk_peaks_24h$end)
+  )
+
+# Add metadata
+mcols(bulk_peaks_24h_gr)= bulk_peaks_24h[7:ncol(bulk_peaks_24h)]
+
+## Load sc ATAC peaks (MP)
+sc_peaks_24h_df = read_table(
+  file = "~/Bureau/sc_ATAC_analysis/data/peaks_hg19.bed", 
+  col_names = FALSE)
+
+colnames(sc_peaks_24h_df) = c("seqnames","start","end")
+
+# Keep only standard chromosomes (based on bulk dataset)
+standard_chr = unique(bulk_peaks_24h$seqnames)
+
+# Filter out non standard chr in single cell dataset
+sc_peaks_24h_df = sc_peaks_24h_df %>% 
+  filter(seqnames %in% standard_chr)
+
+sc_peak_24h_gr = GRanges(
+  seqnames = sc_peaks_24h_df$seqnames,
+  ranges = IRanges(start = sc_peaks_24h_df$start, end = sc_peaks_24h_df$end) 
+)
+
+rm(standard_chr)
+
+```
+
+```{r Annotate single cell peak data}
+
+all_annotations = loadRData(
+  "~/Bureau/sc_ATAC_analysis/data/Annotation_TSS_pm1kb_int_ex_53utr_ctcf_cpg_woThisto_FANTOM5_prom_gr.rda")
+
+annotations_types = levels(factor(all_annotations$annotation))
+
+# First a matrix is created filled with FALSE and added to the Grange
+  metadata = matrix(FALSE, ncol = length(annotations_types), nrow = length(sc_peak_24h_gr))
+  colnames(metadata) = annotations_types
+  mcols(sc_peak_24h_gr) = metadata
+
+  # for each of the annotations types an overlap is calculated and used to assigned the peak as TRUE when overlapping with the annotation
+
+  for (i in 1:ncol(metadata)){
+    sub_annot = all_annotations[all_annotations$annotation == annotations_types[i]]
+    overlaps = findOverlaps(sc_peak_24h_gr, sub_annot)
+    mcols(sc_peak_24h_gr)[queryHits(overlaps),i] = TRUE
+  }
+  
+  colnames(mcols(sc_peak_24h_gr)) = c("UTR3P","UTR5P","CpG", "CTCF","Exons","FANTOM5_promoter", "Introns","TSS_mp1kb")
+
+  mcols(sc_peak_24h_gr) = as_tibble(mcols(sc_peak_24h_gr)) %>%
+  dplyr::mutate(Intergenic = ifelse(UTR3P == FALSE & UTR5P == FALSE & Exons == FALSE & Introns == FALSE & TSS_mp1kb == FALSE & FANTOM5_promoter == FALSE, TRUE, FALSE)) %>%
+  dplyr::mutate(CpG_Intergenic = ifelse(Intergenic == TRUE & CpG == TRUE, TRUE, FALSE)) %>%
+  dplyr::mutate(CpG_Intergenic = ifelse(Intergenic == TRUE & CpG == TRUE, TRUE, FALSE)) %>%
+  dplyr::mutate(CTCF_Intergenic = ifelse(Intergenic == TRUE & CTCF == TRUE, TRUE, FALSE)) %>%
+  dplyr::mutate(CTCF_in_intron = ifelse(Introns == TRUE & CTCF == TRUE, TRUE, FALSE)) %>%
+  dplyr::mutate(CTCF_in_exon = ifelse(Exons == TRUE & CTCF == TRUE, TRUE, FALSE))
+  
+sc_peaks_24h_df = as_tibble(sc_peak_24h_gr)
+
+# Save sc_peaks_24h
+save_exp_files(object = sc_peaks_24h_df,folder = "sc_vs_bulk_overlap", file_type = "csv")
+  
+rm(sub_annot, overlaps, annotations_types, all_annotations, metadata, i)
+
+```
+
+```{r Overlap between bulk and single cell, message=F}
+
+# Calculate the overlap between bulk(model) and sc(query)
+overlap_bulk_sc = findOverlaps(
+  query = bulk_peaks_24h_gr, 
+  subject = sc_peak_24h_gr
+  )
+
+# Retrieve peaks from single-cell dataset positive for an overlap with the peaks in bulk dataset
+sc_overlapped_peaks = as.data.frame(sc_peaks_24h_df[subjectHits(overlap_bulk_sc),])
+sc_overlapped_peaks = distinct(sc_overlapped_peaks)
+
+# Retrieve peaks from bulk dataset positive for an overlap with the peaks in single-cell dataset
+bulk_overlapped_peaks = bulk_peaks_24h[queryHits(overlap_bulk_sc),]
+bulk_overlapped_peaks = distinct(bulk_overlapped_peaks)
+
+```
+
+
+```{r Overlap statistics between bulk and sc - all peaks, message=F}
+
+# Get path for the last sc_sharing_stats.csv generated
+sc_sharing_stats = last_file_generated(parent_folder = "~/Bureau/sc_ATAC_analysis/exp/cells_peaks_statistics/", pattern = ".csv" )
+
+# Load single-cell sharing statistics data.frame
+sc_sharing_stats = read.delim(sc_sharing_stats, sep = ";")
+# sc_sharing_stats = loadRData("~/Bureau/sc_ATAC_analysis/exp/cells_peaks_statistics/2022_01_19_12h_33min/sc_sharing_stats_df.rda")
+
+sc_sharing_stats_df = tibble(
+  peak_name = sc_sharing_stats$peak_name,
+  nb_cells_sharing_this_peak = sc_sharing_stats$sc_sharing_stats_df)
+
+# Create columns with start, end and seqnames 
+df = as_tibble(str_split_fixed(
+  string = sc_sharing_stats_df$peak_name,
+  pattern = "_",
+  n=3)
+)
+
+# Correct these 3 col's format
+colnames(df) = c("seqnames","start","end")
+df$start = as.numeric(df$start)
+df$end = as.numeric(df$end)
+
+# Bind them with the sharing statistics data frame
+sc_sharing_stats_df = bind_cols(sc_sharing_stats_df, df)
+
+# Create a "peak_name" column for further joining operations
+sc_overlapped_peaks = sc_overlapped_peaks[,1:3]
+sc_overlapped_peaks$peak_name = str_c(sc_overlapped_peaks$seqnames,
+             sc_overlapped_peaks$start,
+             sc_overlapped_peaks$end,
+             sep = "_")
+
+# Create a column to make the distinction between peaks that overlap with bulk 24h peaks
+sc_overlapped_peaks$overlap_bulk_at_24h = TRUE
+
+# Joing the two dataframes             
+sc_sharing_stat_overlapped = full_join(sc_sharing_stats_df, sc_overlapped_peaks, by = c("seqnames","start","end","peak_name")) 
+
+# Completing overlap info column and calculate the mean
+sc_sharing_stat_overlapped = sc_sharing_stat_overlapped %>% 
+  mutate(overlap_bulk_at_24h = replace(overlap_bulk_at_24h, is.na(overlap_bulk_at_24h), "FALSE")) %>%
+  group_by(overlap_bulk_at_24h) %>%
+  mutate(sharing_cell_med = median(nb_cells_sharing_this_peak))
+
+sc_sharing_stat_overlapped = inner_join(sc_sharing_stat_overlapped, sc_peaks_24h_df, by = c("seqnames","start","end"))
+
+save_exp_files(
+  object = sc_sharing_stat_overlapped,
+  folder = "sc_vs_bulk_overlap",
+  file_type = "csv")
+
+# Draw plot
+all_peaks_shared_plot = ggplot(sc_sharing_stat_overlapped, aes(x = nb_cells_sharing_this_peak, color = overlap_bulk_at_24h)) +
+  geom_histogram(aes(fill = overlap_bulk_at_24h), alpha = 0.3, position = "identity") +
+  geom_vline(aes(xintercept=sharing_cell_med, color=overlap_bulk_at_24h),
+             linetype="dashed") +
+  ggtitle(label = "Nb cells sharing peaks distribution", subtitle = "All peaks (253 591), all annotation")
+
+save_exp_files(object = all_peaks_shared_plot, folder = "sc_vs_bulk_overlap",file_type = "plot",width = 150, height = 150)
+
+## Make the same plot but with equally sampled peaks in the two groups
+
+sc_sharing_stat_overlapped_sampled = sc_sharing_stat_overlapped %>% 
+  mutate(overlap_bulk_at_24h = replace(overlap_bulk_at_24h, is.na(overlap_bulk_at_24h), "no")) %>%
+  group_by(overlap_bulk_at_24h) %>%
+  slice_sample(n=nrow(sc_overlapped_peaks)) %>% # sample non-overlapping peaks to the number of overlapping peaks
+  mutate(sharing_cell_mean = mean(nb_cells_sharing_this_peak))
+
+sampled_peaks_shared_plot = ggplot(sc_sharing_stat_overlapped_sampled, aes(x = nb_cells_sharing_this_peak, color = overlap_bulk_at_24h)) +
+  geom_histogram(aes(fill = overlap_bulk_at_24h), alpha = 0.3, position = "identity") +
+  geom_vline(aes(xintercept=sharing_cell_mean, color=overlap_bulk_at_24h),
+             linetype="dashed") +
+    ggtitle(label = "Nb cells sharing peaks distribution", subtitle = "Non-overlapping peaks were sampled to match the number \n of overlapping peaks (n = 42345 ), all annotation")
+
+save_exp_files(object = sampled_peaks_shared_plot, folder = "sc_vs_bulk_overlap",file_type = "plot",width = 300, height = 300)
+
+```
+
+```{r Overlap statistics between bulk and sc - Prom and intergenic peaks only}
+
+sc_prom_peaks = sc_peak_24h_gr[which(sc_peak_24h_gr$FANTOM5_promoter == TRUE)]
+sc_prom_peaks = as_tibble(sc_prom_peaks)
+sc_prom_peaks = inner_join(sc_prom_peaks[,1:3], sc_sharing_stats_df, by = c("seqnames","start","end"))
+
+sc_overlapped_prom_peaks = left_join(sc_prom_peaks, sc_overlapped_peaks, by = c("seqnames","start","end","peak_name"))
+
+sc_overlapped_prom_peaks = sc_overlapped_prom_peaks %>% 
+  mutate(overlap_bulk_at_24h = replace(overlap_bulk_at_24h, is.na(overlap_bulk_at_24h), "FALSE")) %>%
+  group_by(overlap_bulk_at_24h) %>%
+  mutate(sharing_cell_mean = median(nb_cells_sharing_this_peak))
+
+# Save single_cell promoter peaks (overlap with bulk info TRUE/FALSE)
+save_exp_files(object = sc_overlapped_prom_peaks, folder = "sc_vs_bulk_overlap", file_type = "csv")
+
+prom_overlap_plot = ggplot(sc_overlapped_prom_peaks, aes(x = nb_cells_sharing_this_peak, color = overlap_bulk_at_24h)) +
+  geom_histogram(aes(fill = overlap_bulk_at_24h), alpha = 0.3, position = "identity") +
+  geom_vline(aes(xintercept=sharing_cell_mean, color=overlap_bulk_at_24h),
+             linetype="dashed") +
+  ggtitle(
+    label = "Nb cells sharing promoter peaks distribution", 
+    subtitle = paste("Nb total prom detected with sc ATAC =", nrow(sc_overlapped_prom_peaks), 
+    "\n Nb of peaks overlapping with prom detected in bulk ATAC =" , length(which(sc_overlapped_prom_peaks$overlap_bulk_at_24h == "yes")))
+  )
+
+save_exp_files(object = prom_overlap_plot, folder = "sc_vs_bulk_overlap", file_type = "plot",width = 300, height = 300)
+
+#######
+# Same method for intergenic peaks
+#######
+
+sc_intergenic_peaks = sc_peak_24h_gr[which(sc_peak_24h_gr$Intergenic == TRUE)]
+sc_intergenic_peaks = as_tibble(sc_intergenic_peaks)
+sc_intergenic_peaks = inner_join(sc_intergenic_peaks[,1:3], sc_sharing_stats_df, by = c("seqnames","start","end"))
+
+sc_overlapped_intergenic_peaks = left_join(sc_intergenic_peaks, sc_overlapped_peaks, by = c("seqnames","start","end","peak_name"))
+
+sc_overlapped_intergenic_peaks = sc_overlapped_intergenic_peaks %>% 
+  mutate(overlap_bulk_at_24h = replace(overlap_bulk_at_24h, is.na(overlap_bulk_at_24h), "no")) %>%
+  group_by(overlap_bulk_at_24h) %>%
+  mutate(sharing_cell_mean = median(nb_cells_sharing_this_peak))
+
+# Save single_cell intergenic peaks (overlap with bulk info TRUE/FALSE)
+save_exp_files(object = sc_overlapped_intergenic_peaks, folder = "sc_vs_bulk_overlap", file_type = "csv")
+
+
+intergenic_overlap_plot = ggplot(sc_overlapped_intergenic_peaks, aes(x = nb_cells_sharing_this_peak, color = overlap_bulk_at_24h)) +
+  geom_histogram(aes(fill = overlap_bulk_at_24h), alpha = 0.3, position = "identity") +
+  geom_vline(aes(xintercept=sharing_cell_mean, color=overlap_bulk_at_24h),
+             linetype="dashed")+
+  ggtitle(
+    label = "Nb cells sharing intergenic peaks distribution", 
+    subtitle = paste("Nb total intergenic regions detected with sc ATAC =", nrow(sc_overlapped_intergenic_peaks), 
+    "\n Nb of sc-peaks overlapping with intergenic regions detected in bulk ATAC =" , length(which(sc_overlapped_intergenic_peaks$overlap_bulk_at_24h == "yes")))
+  )
+
+save_exp_files(object = intergenic_overlap_plot, folder = "sc_vs_bulk_overlap", file_type = "plot",width = 300, height = 300)
+
+```
+
+```{r}
+
+# Path to Peak cell count binary matrix
+peak_cell_count_matrix = last_file_generated(parent_folder = "~/Bureau/sc_ATAC_analysis/exp/cells_peaks_statistics/", pattern = "peak_cell_count_matrix")
+
+# Load the matrix
+peak_cell_count_matrix = loadRData(peak_cell_count_matrix)
+
+# Promoter peaks path
+sc_prom_peaks = last_file_generated(
+  parent_folder = "~/Bureau/sc_ATAC_analysis/exp/sc_vs_bulk_overlap/",
+  pattern = "prom_peaks.csv" )
+
+# Load Promoter peaks path
+sc_prom_peaks = read_csv2(sc_prom_peaks)
+
+
+# Subset only peaks found in promoter region
+
+prom_count_matrix = peak_cell_count_matrix[which(rownames(peak_cell_count_matrix) %in% sc_prom_peaks$peak_name),]
+
+## Histogram of number of peaks per cell
+nb_prom_peaks_stats_df = colSums(prom_count_matrix) # Summing rows to count number of cells sharing a peak
+nb_prom_peaks_stats_df = as.data.frame(nb_prom_peaks_stats_df)
+colnames(nb_prom_peaks_stats_df) = "nb_prom_peaks_in_this_cell"
+nb_prom_peaks_stats_df$cell_name = rownames(nb_prom_peaks_stats_df)
+
+save_exp_files(object = nb_prom_peaks_stats_df, folder = "sc_vs_bulk_overlap", file_type = "csv" )
+
+plot_nb_prom_peaks_cell = ggplot(data = nb_prom_peaks_stats_df, aes(x = nb_prom_peaks_in_this_cell)) +
+  geom_histogram(bins = 50, color = "black", fill = "white", alpha = 0.5) +
+  ggtitle(label = "Nb of peaks in a cell distribution",
+          subtitle = paste0("Median = ", median(nb_prom_peaks_stats_df$nb_prom_peaks_in_this_cell)))
+
+save_exp_files(object = plot_nb_peaks_cell, folder = "sc_vs_bulk_overlap", file_type = "plot",width = 200, height = 200 )
+
+```
+

@@ -1,0 +1,188 @@
+---
+title: "correlation_reads_cells"
+author: "Romuald"
+date: "20/01/2022"
+output: html_document
+---
+
+```{r Libraries, message=F, echo=FALSE, warning=FALSE, results='hide'}
+
+library(readr)
+library(GenomicRanges)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(ggthemes)
+library(svglite)
+
+```
+
+```{r Function definition}
+
+loadRData<-function(fileName){
+  #loads an RData file, and returns it
+  load(fileName)
+  get(ls()[ls()!="fileName"])
+  
+}
+
+save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width, height){
+  
+  syst_time = format(Sys.time(), "%Y_%m_%d_%Hh")
+  
+  if(file_type == "rda"){
+    
+    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+      
+      save(
+        object, 
+        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".rda"))
+    }
+    
+    else{ 
+      
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      dir.create(new_dir)
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      dir.create(new_dir)
+      save(object, file = paste0(new_dir, "/" , deparse(substitute(object)), ".rda"))
+      
+    }
+  }
+  
+  if(file_type == "csv"){
+    
+    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+      
+      write_csv2(
+        x = object, 
+        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".csv"))
+    }
+    
+    else{ 
+      
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      dir.create(new_dir)
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      dir.create(new_dir)
+      write_csv2(
+        x = object, 
+        file = paste0(new_dir, "/" , deparse(substitute(object)), ".csv"))
+      
+    }
+  }
+  
+  if(file_type == "plot"){
+    
+    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+      
+      ggsave(
+        object,
+        filename = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".svg"),
+        width = width,
+        height = height,
+        units = "mm")
+    }
+    
+    else{
+      
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      dir.create(new_dir)
+      
+      ggsave(
+        object,
+        filename = paste0(new_dir, "/" , deparse(substitute(object)), ".svg"),
+        width = width,
+        height = height,
+        units = "mm")
+      
+    }
+  }
+}
+
+```
+
+```{r Preparing bulk data}
+
+# General list (union) of peaks obtained in bulk ATAC
+bulk_peaks_24h <- read_delim(
+  "~/MARS-ATAC/exp/ATAC_peak_annotation/2021_01_01/peaks_intersection_24h_MP_ann.csv",
+  delim = ";", escape_double = FALSE, trim_ws = TRUE, show_col_types = FALSE)
+
+# Transform it into a Grange
+bulk_peaks_24h_gr = GRanges(
+  seqnames = bulk_peaks_24h$seqnames,
+  ranges = IRanges(start = bulk_peaks_24h$start, end = bulk_peaks_24h$end)
+  )
+
+# Add metadata
+mcols(bulk_peaks_24h_gr)= bulk_peaks_24h[7:ncol(bulk_peaks_24h)]
+
+# Load readcount for bulk 24h
+readcount_bulk_24 = read.csv2("~/MARS-ATAC/exp/ATAC_peak_readcount/2021_01_01/GSE156733_readCount_24h_Xvivo.txt")
+readcount_bulk_24 = pivot_longer(data = readcount_bulk_24,cols = c(2:4), names_to = "Sample")
+mean_readcount = readcount_bulk_24 %>% group_by(X) %>% summarise(mean = mean(value))
+
+# Adding mean_readcount tobulk peak information dataframe
+bulk_peaks_24h$mean_readcount = mean_readcount$mean
+bulk_peaks_24h = bulk_peaks_24h %>% select(c(2:5,25,6:24))
+
+# Transform it into a Grange
+bulk_peaks_24h_gr = GRanges(
+  seqnames = bulk_peaks_24h$seqnames,
+  ranges = IRanges(start = bulk_peaks_24h$start, end = bulk_peaks_24h$end)
+  )
+
+```
+
+```{r Preparing single cell data}
+
+sc_sharing_stat_overlapped = read_delim("~/Bureau/sc_ATAC_analysis/exp/sc_vs_bulk_overlap/2022_01_20_16h/sc_sharing_stat_overlapped.csv")
+
+sc_peak_24h_gr = GRanges(
+  seqnames = sc_sharing_stat_overlapped$seqnames,
+  ranges = IRanges(start = sc_sharing_stat_overlapped$start, end = sc_sharing_stat_overlapped$end) 
+)
+
+```
+
+```{r Test the correlation between readcount and nb_cells}
+
+# Calculate the overlap between sc and bulk dataset
+bulk_vs_sc_overlap = findOverlaps(query = bulk_peaks_24h_gr, sc_peak_24h_gr)
+
+# Put the variable (next to each other for each overlapping peak) to test in the same table
+corr_readcount_cells_df = tibble(
+  bulk_readcount = bulk_peaks_24h[queryHits(bulk_vs_sc_overlap),]$mean_readcount,
+  width = bulk_peaks_24h[queryHits(bulk_vs_sc_overlap),]$width,
+  sc_nb_sharing_cells = sc_sharing_stat_overlapped[subjectHits(bulk_vs_sc_overlap),]$nb_cells_sharing_this_peak
+  )
+
+save_exp_files(object = corr_readcount_cells_df, folder = "correlation_reads_cells", file_type = "csv" )
+
+# # Trying to normalized readcount with size of peaks
+# corr_readcount_cells_df = corr_readcount_cells_df %>%
+#   mutate(size_normalized_readcount = bulk_readcount/width)
+
+corr_readcount_cells_df = corr_readcount_cells_df %>%
+  filter(bulk_readcount < 500)
+
+# Checking read distribution amon bulk peaks
+plot_hist_readcount_bulk = ggplot(data = corr_readcount_cells_df, aes(x = bulk_readcount)) +
+  geom_histogram(bins = 50) +
+  ggtitle(label = "Mean readcout for bulk ATACseq peaks at 24h")
+
+save_exp_files(object = plot_hist_readcount_bulk, folder = "correlation_reads_cells", file_type = "plot",width = 200, height = 200 )
+
+
+# Draw correlation plot between readcount and nb_cells sharing peaks
+plot_corr_reads_cells = ggplot(
+  data = corr_readcount_cells_df,
+  aes(x = sc_nb_sharing_cells , y = bulk_readcount)) +
+  geom_point()
+
+save_exp_files(object = plot_corr_reads_cells, folder = "correlation_reads_cells", file_type = "plot", width = 200, height = 200 )
+
+```
+

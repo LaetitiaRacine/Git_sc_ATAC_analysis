@@ -1,0 +1,106 @@
+---
+title: "Generate hg19 cell-peak matrix"
+author: "Romuald"
+date: "19/01/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+require(magrittr)
+require(readr)
+require(Matrix)
+require(tidyr)
+require(dplyr)
+require(Seurat)
+require(stringr)
+
+```
+
+
+```{r Funcion definition}
+
+save_exp_files = function(object, folder){
+  
+  syst_time = format(Sys.time(), "%Y_%m_%d_%Hh_%Mmin")
+  
+  if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+    
+      save(
+        object, 
+        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".rda"))
+  }
+  
+  else{ 
+    
+    new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+    dir.create(new_dir)
+    new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+    dir.create(new_dir)
+    save(object, file = paste0(new_dir, "/" , deparse(substitute(object)), ".rda"))
+    
+      }
+}
+
+```
+
+```{r Load peaks_cell_matrix and single_cell_read_stat}
+
+# List directions
+mex_dir_path <- "~/Bureau/sc_ATAC_analysis/data/"
+mtx_path <- paste(mex_dir_path, "matrix.mtx", sep = '/')
+features_hg38_path <- paste(mex_dir_path, "peaks_hg38.bed", sep = '/')
+barcode_path <- paste(mex_dir_path, "barcodes.tsv", sep = '/')
+
+# Peaks mapped on hg38 (original data)
+features_hg38 <- readr::read_tsv(features_hg38_path, col_names = F) %>% tidyr::unite(features)
+# Cells barcodes
+barcodes <- readr::read_tsv(barcode_path, col_names = F) %>% tidyr::unite(barcode)
+
+## Load the original matrix (hg38) in a dataframe
+mtx <- Matrix::readMM(mtx_path) %>%
+  magrittr::set_rownames(features_hg38$features) %>%
+  magrittr::set_colnames(barcodes$barcode)
+
+# Format conversion
+mtx_sp = as.sparse(mtx)
+mtx_df_hg38 = as.data.frame(mtx)
+
+```
+
+
+```{r Switch peaks position in matrix from hg38 to hg19}
+
+# Load new peaks positions, mapped on hg19 (LiftOver result from hg38 to hg19)
+features_hg19_path <- paste(mex_dir_path, "peaks_hg19.bed", sep = '/')
+features_hg19 <- readr::read_tsv(features_hg19_path, col_names = F) %>% tidyr::unite(features)
+
+# Load LiftOver errors (conversion from hg38 to hg19 failures)
+conv_error_df <- read_csv("~/Bureau/sc_ATAC_analysis/data/hg38_hg19_conv_error.csv",col_names = F)
+
+# Retrieve the failures position (700 on 255 000)
+conv_error_df = conv_error_df %>%
+  filter(!row_number() %in% seq(from = 1, to = nrow(conv_error_df), by = 2)) %>%
+  mutate(X1 = str_replace_all(X1,"\\s","_"))
+
+# Remove failures in the matrix 
+errors_ind = which(features_hg38$features %in% conv_error_df$X1 == TRUE)# Get the errors indices
+mtx_df_hg19 = mtx_df_hg38[-errors_ind,]# Remove the peaks (rows)
+
+# Replace the positions from hg38 to hg19
+rownames(mtx_df_hg19) = features_hg19$features
+
+save_exp_files(object = mtx_df_hg19, folder = "hg19_cells_peaks_matrix")
+
+rm(mex_dir_path, mtx_path, features_hg38, features_hg19, barcode_path, features, barcodes, mtx, mtx_sp, mtx_df_hg38, mtx_df_hg19, conv_error_df)
+
+```
+
+
+```{r # Single cell sequenced reads statistics}
+
+sc_reads_info = read.csv(file = "~/Bureau/sc_ATAC_analysis/data/singlecell.csv")
+sc_reads_info = sc_reads_info %>% 
+  filter(is__cell_barcode != 0) # Remove cells with excluded barcode
+
+```

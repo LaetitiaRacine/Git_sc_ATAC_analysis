@@ -1,0 +1,182 @@
+---
+title: "Cells_peaks_statistics"
+author: "Romuald"
+date: "19/01/2022"
+output: html_document
+---
+
+```{r Libraries}
+
+require(readr)
+require(ggplot2)
+
+```
+
+
+```{r Function definition}
+
+### Function to load files with desired name
+
+loadRData<-function(fileName){
+  #loads an RData file, and returns it
+  load(fileName)
+  get(ls()[ls()!="fileName"])
+  
+}
+
+### Function to save generated object in correct exp/folder
+save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width, height){
+  
+  syst_time = format(Sys.time(), "%Y_%m_%d_%Hh")
+  
+  if(file_type == "rda"){
+    
+    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+      
+      save(
+        object, 
+        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".rda"))
+    }
+    
+    else{ 
+      
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      dir.create(new_dir)
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      dir.create(new_dir)
+      save(object, file = paste0(new_dir, "/" , deparse(substitute(object)), ".rda"))
+      
+    }
+  }
+  
+  if(file_type == "csv"){
+    
+    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+      
+      write_csv2(
+        x = object, 
+        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".csv"))
+    }
+    
+    else{ 
+      
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      dir.create(new_dir)
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      dir.create(new_dir)
+      write_csv2(
+        x = object, 
+        file = paste0(new_dir, "/" , deparse(substitute(object)), ".csv"))
+      
+    }
+  }
+  
+  if(file_type == "plot"){
+    
+    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+      
+      ggsave(
+        object,
+        filename = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".svg"),
+        width = width,
+        height = height,
+        units = "mm")
+    }
+    
+    else{
+      
+      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      dir.create(new_dir)
+      
+      ggsave(
+        object,
+        filename = paste0(new_dir, "/" , deparse(substitute(object)), ".svg"),
+        width = width,
+        height = height,
+        units = "mm")
+      
+    }
+  }
+}
+
+
+last_file_generated = function(parent_folder, pattern){
+  
+  dir = list.dirs(path = parent_folder, recursive = F)
+  dir = dir[length(dir)]
+
+  files = list.files(
+    path = dir,
+    pattern = pattern,
+    full.names = T)
+  
+  return(files)
+}
+
+```
+
+
+```{r }
+
+# Get the last hg19_mtx generated
+hg19_mtx = last_file_generated(
+  parent_folder = "~/Bureau/sc_ATAC_analysis/exp/hg19_cells_peaks_matrix",
+  pattern = "mtx_df_hg19")
+
+#Load it into a new object
+peak_cell_count_matrix = loadRData(hg19_mtx)
+
+# Replacing all values > 0 (reads) with 1
+peak_cell_count_matrix[peak_cell_count_matrix > 0] = 1 
+
+# Save the count_mtx
+save_exp_files(object = peak_cell_count_matrix, folder = "cells_peaks_statistics", file_type = "rda" )
+
+##################################################
+### How much the peaks are shared among cells ####
+##################################################
+
+## Histogram of number of peaks (= freq) shared by n cells
+sc_sharing_stats_df = rowSums(peak_cell_count_matrix) # Summing rows to count number of cells sharing a peak
+sc_sharing_stats_df = as.data.frame(sc_sharing_stats_df)
+colnames(sc_sharing_stats_df) = "nb_cells_sharing_this_peak"
+sc_sharing_stats_df$peak_name = rownames(sc_sharing_stats_df)
+
+save_exp_files(object = sc_sharing_stats_df, folder = "cells_peaks_statistics", file_type = "csv" )
+
+plot_cell_peaks_share = ggplot(data = sc_sharing_stats_df, aes(x = nb_cells_sharing_this_peak)) +
+  geom_histogram(bins = 50) +
+  ggtitle(label = "Nb cell sharing a peak distribution")
+
+save_exp_files(object = plot_cell_peaks_share, folder = "cells_peaks_statistics", file_type = "plot",width = 200, height = 200 )
+
+## Table of frequencies
+df_peaks_detection = data_frame(
+  nb_cells_sharing = res$breaks[1:1000], 
+  freq = res$counts[1:1000])# Nb of peaks shared by n cells (nb_cells_sharing)
+
+
+##################################
+### How many peaks in a cells ####
+##################################
+
+## Histogram of number of peaks per cell
+nb_peaks_stats_df = colSums(peak_cell_count_matrix) # Summing rows to count number of cells sharing a peak
+nb_peaks_stats_df = as.data.frame(nb_peaks_stats_df)
+colnames(nb_peaks_stats_df) = "nb_peaks_in_this_cell"
+nb_peaks_stats_df$cell_name = rownames(nb_peaks_stats_df)
+
+save_exp_files(object = nb_peaks_stats_df, folder = "cells_peaks_statistics", file_type = "csv" )
+
+plot_nb_peaks_cell = ggplot(data = nb_peaks_stats_df, aes(x = nb_peaks_in_this_cell)) +
+  geom_histogram(bins = 50, color = "black", fill = "white", alpha = 0.5) +
+  ggtitle(label = "Nb of peaks in a cell distribution")
+
+save_exp_files(object = plot_nb_peaks_cell, folder = "cells_peaks_statistics", file_type = "plot",width = 200, height = 200 )
+
+## Table of frequencies
+nb_peaks_stats_df = data_frame(
+  nb_cells_sharing = res$breaks[1:1000], 
+  freq = res$counts[1:1000])# Nb of peaks shared by n cells (nb_cells_sharing)
+
+```
