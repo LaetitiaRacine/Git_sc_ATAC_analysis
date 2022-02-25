@@ -40,6 +40,9 @@ dir_output = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/exp/complete_Seurat
 currentDate = "20220224"
 dir.create(path = paste0(dir_output, "complete_Seurat_procedure/", currentDate))
 
+
+# à effacer quand code fini (redondant avec partie préprocessing)
+dims_choice = "2:30"
 ```
 
 <!--*************************************************************************-->
@@ -444,28 +447,32 @@ saveRDS(object = seurat_obj, file = paste0(dir_output, currentDate, "/seurat_obj
 seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_geneact_dim2-30.rds")) 
 ```
 
-```{r, Change DefaultAssay}
+```{r, Change DefaultAssay and choose resolution}
+
 # Change back to working with peaks instead of gene activities
 DefaultAssay(seurat_obj) <- 'peaks'
+
+# Choose working resolution
+res = "res.0.05"
+
 ```
 
-```{r, Peaks distribution accross clusters}
+```{r, Peaks distribution accross clusters, results = 'hold', fig.width=14, fig.height=6}
 
-# Choose your resolutions
-res = "res0.1"
-# à écrire si inspiré
+# https://github.com/satijalab/seurat/issues/1053
 
 tab_peak_clust = data.frame(cell = character(), nbpeaks = numeric(), clust = character())
+meta_col = paste0("peaks_snn_", res)
 
-# Changer la résolution à la main !!!
-for (i in 1:length(levels(seurat_obj$peaks_snn_res.0.1))) {
-  
+for ( i in 1:length(levels((seurat_obj@meta.data)[,meta_col])) ) {
+
   # Extract cluster number
-  clust = levels(seurat_obj$peaks_snn_res.0.1)[i]
+  clust = levels((seurat_obj@meta.data)[,meta_col])[i]
   # Create subset of seurat object with cells from clust x
-  seurat_clust = subset(seurat_obj, subset = peaks_snn_res.0.1 == clust)
+  expr = FetchData(object = seurat_obj, vars = meta_col)
+  seurat_clust = seurat_obj[, which(x = (expr == clust))]
   # Check if the subset was correctly done
-  print(table(seurat_clust@meta.data$peaks_snn_res.0.1)) 
+  print(table((seurat_clust@meta.data)[,meta_col])) 
   # Extract peak count matrix of clust x from general seurat object
   tab_clust = as.data.frame(GetAssayData(seurat_clust, slot = "data")) 
   # Transform count into logical
@@ -492,23 +499,84 @@ tab_peak_stat = tab_peak_clust %>%
   dplyr::distinct()
 tab_peak_stat %>% kable(caption = res) %>% kable_styling()
 
-plot_peak_clust = ggplot(tab_peak_clust, aes(x = nbpeaks, fill = clust)) +
+tab_plot  = left_join(tab_peak_clust, tab_peak_stat)
+plot_peak_clust = ggplot(tab_plot, aes(x = nbpeaks, fill = clust )) +
   geom_histogram(bins = 50, color = "black", alpha = 0.5) +
-  ggtitle(label = paste0("Distribution of peaks' number per cell according to cluster - ", res))
+  geom_vline(aes(xintercept = median_nbpeaks, col = clust), linetype = "dashed", size = 1) +
+  ggtitle(label = paste0("Distribution of peaks' number per cell according to cluster (with median) - ", res))
 plot_peak_clust
 
 # Save objects and clean working space
 ggsave(plot = plot_peak_clust, 
        filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_peaks_clust.png"), 
-       width = 8, height = 6)
+       width = 14, height = 6)
 write_csv2(tab_peak_clust, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_",res, "_peaks_clust.csv"))
 write_csv2(tab_peak_stat, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_peaks_stat.csv"))
-rm(i, clust, seurat_clust, tab_clust, plot_peak_clust, tab_peak_clust, tab_peak_stat)
+rm(i, clust, seurat_clust, tab_clust, plot_peak_clust, tab_peak_clust, tab_peak_stat, res, expr, meta_col, tab_plot)
+
+```
+
+```{r, TSS Peaks distribution accross clusters, results = 'hold', fig.width=14, fig.height=6}
+# faire la même chose seulement sur les peaks qui tombent sur les TSS (il y a une fonction normalement qui existe pour ça (avec grange ou autre))
+
+# https://github.com/satijalab/seurat/issues/1053
+
+tab_peak_clust = data.frame(cell = character(), nbpeaks = numeric(), clust = character())
+meta_col = paste0("peaks_snn_", res)
+
+for ( i in 1:length(levels((seurat_obj@meta.data)[,meta_col])) ) {
+
+  # Extract cluster number
+  clust = levels((seurat_obj@meta.data)[,meta_col])[i]
+  # Create subset of seurat object with cells from clust x
+  expr = FetchData(object = seurat_obj, vars = meta_col)
+  seurat_clust = seurat_obj[, which(x = (expr == clust))]
+  # Check if the subset was correctly done
+  print(table((seurat_clust@meta.data)[,meta_col])) 
+  # Extract peak count matrix of clust x from general seurat object
+  tab_clust = as.data.frame(GetAssayData(seurat_clust, slot = "data")) 
+  # Transform count into logical
+  tab_clust = tab_clust %>% mutate_all(as.logical)
+  # Calculate number of peaks detected per cell
+  tab_clust = data.frame(nbpeaks = colSums(tab_clust)) %>% 
+    tibble::rownames_to_column(var = "cell") %>%
+    dplyr::mutate(clust = clust)
+  # Bind in general tab
+  tab_peak_clust = rbind(tab_clust, tab_peak_clust)
+  
+}
+
+tab_peak_stat = tab_peak_clust %>%
+  dplyr::group_by(clust) %>%
+  dplyr::mutate(nbcells = n(),
+                median_nbpeaks = median(nbpeaks),
+                mean_nbpeaks = round(mean(nbpeaks)),
+                max_nbpeaks = max(nbpeaks),
+                min_nbpeaks = min(nbpeaks),
+                var_nbpeaks = round(sd(nbpeaks))) %>%
+  dplyr::ungroup() %>%
+  dplyr::select(clust, nbcells, median_nbpeaks, mean_nbpeaks, max_nbpeaks, min_nbpeaks, var_nbpeaks) %>%
+  dplyr::distinct()
+tab_peak_stat %>% kable(caption = res) %>% kable_styling()
+
+tab_plot  = left_join(tab_peak_clust, tab_peak_stat)
+plot_peak_clust = ggplot(tab_plot, aes(x = nbpeaks, fill = clust )) +
+  geom_histogram(bins = 50, color = "black", alpha = 0.5) +
+  geom_vline(aes(xintercept = median_nbpeaks, col = clust), linetype = "dashed", size = 1) +
+  ggtitle(label = paste0("Distribution of peaks' number per cell according to cluster (with median) - ", res))
+plot_peak_clust
+
+# Save objects and clean working space
+ggsave(plot = plot_peak_clust, 
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_peaks_clust.png"), 
+       width = 14, height = 6)
+write_csv2(tab_peak_clust, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_",res, "_peaks_clust.csv"))
+write_csv2(tab_peak_stat, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_peaks_stat.csv"))
+rm(i, clust, seurat_clust, tab_clust, plot_peak_clust, tab_peak_clust, tab_peak_stat, res, expr, meta_col, tab_plot)
 
 ```
 
 ```{r, Peaks distribution accross clusters in annotations}
-# faire la même chose seulement sur les peaks qui tombent sur les TSS (il y a une fonction normalement qui existe pour ça (avec grange ou autre))
 # pour chacun des deux clusters, faire la même distribution mais pour chaque élément/annotation génomique et faire les histogrammes comme pour le bulk
 ```
 
@@ -520,16 +588,15 @@ rm(i, clust, seurat_clust, tab_clust, plot_peak_clust, tab_peak_clust, tab_peak_
 # clust1_cells = names(seurat_obj$peaks_snn_res.0.05[which(seurat_obj$peaks_snn_res.0.05 == 1)])
 # nbcells_clust1 = length(clust1_cells)
 
-
 # Take values from 0.05 resolution
 Idents(seurat_obj) = seurat_obj$peaks_snn_res.0.05
 
-# Compare clsuters
+# Compare clusters
 da_peaks <- FindMarkers(
   object = seurat_obj,
   ident.1 = 0,
   ident.2 = 1,
-  min.pct = 0.05,  # au mini le peak doit être partagé par 5% de la pop
+  min.pct = 0.05,  # au minimum le peak doit être partagé par 5% de la pop
   test.use = 'LR',
   latent.vars = 'peak_region_fragments',
   verbose = TRUE
@@ -543,21 +610,22 @@ da_peaks <- FindMarkers(
 # pct.2: The percentage of cells where the gene is detected in the second group
 head(da_peaks)
 
-# Récuparation du nom des peaks qui ont log2FC sup à 0.5
-# pb : que des fold-change négatif : que des peaks qui se ferment dans le petit groupes ??? erreur ou pas DA_1 = empty
-# vérifier les paramètres FindMarkers
+# Extract peaks with log2FC > 0.5
 DA_openPeaks <- rownames(da_peaks[da_peaks$avg_log2FC > 0.5, ])
-# Récuparation du nom des peaks qui ont log2FC inf à -0.5
+# Extract peaks with log2FC < - 0.5
 DA_closePeaks <- rownames(da_peaks[da_peaks$avg_log2FC < -0.5, ])
 
+# pb : que des fold-change négatif : que des peaks qui se ferment dans le petit groupes ??? erreur ou pas DA_1 = empty
+# les deux sont empty quand on choisit une résolution de 0.1 et 0.2
 ```
 
 ```{r Identifying peaks with high fold change}
 
-# Récupère le gène le plus proche des peaks identifiés
+# Place peaks on genome and determine the closest gene
 # on obtient un tableau => vérifier si on a l'info de la fiabilité de l'attribution des gènes dans les peaks
 DA_closePeaks_gene <- ClosestFeature(seurat_obj, regions = DA_closePeaks)
 head(DA_closePeaks_gene)
+
 # DA_openPeaks_gene <- ClosestFeature(seurat_obj, regions = DA_openPeaks)
 # head(DA_openPeaks_gene)
 
@@ -587,6 +655,7 @@ dotplot(ego, showCategory = 20)
 
 # refaire la même chose (ego) avec les foldchange positifs => pour avoir l'info de l'autre cluster
 ```
+
 
 ```{r, Cluster gene specific }
 # sortir la liste de tous les gènes qui ont un peak dans le clust0, dans le clust1, enlever l'intersection et regarder ce qui n'est pas en commun :
