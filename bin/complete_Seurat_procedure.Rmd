@@ -34,12 +34,12 @@ library(kableExtra)
 
 ```{r Working directories}
 
+dir_git = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/"
 dir_input = "~/Bureau/scATAC_raw_data/ATAC_Ctrl_MP/"
 dir_output = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/exp/complete_Seurat_procedure/"
 # currentDate <- paste0(substr(Sys.Date(), 1,4), substr(Sys.Date(),6,7), substr(Sys.Date(),9, 10))
 currentDate = "20220224"
 dir.create(path = paste0(dir_output, "complete_Seurat_procedure/", currentDate))
-
 
 # à effacer quand code fini (redondant avec partie préprocessing)
 dims_choice = "2:30"
@@ -457,128 +457,7 @@ res = "res.0.05"
 
 ```
 
-```{r, Peaks distribution accross clusters, results = 'hold', fig.width=14, fig.height=6}
-
-# https://github.com/satijalab/seurat/issues/1053
-
-tab_peak_clust = data.frame(cell = character(), nbpeaks = numeric(), clust = character())
-meta_col = paste0("peaks_snn_", res)
-
-for ( i in 1:length(levels((seurat_obj@meta.data)[,meta_col])) ) {
-
-  # Extract cluster number
-  clust = levels((seurat_obj@meta.data)[,meta_col])[i]
-  # Create subset of seurat object with cells from clust x
-  expr = FetchData(object = seurat_obj, vars = meta_col)
-  seurat_clust = seurat_obj[, which(x = (expr == clust))]
-  # Check if the subset was correctly done
-  print(table((seurat_clust@meta.data)[,meta_col])) 
-  # Extract peak count matrix of clust x from general seurat object
-  tab_clust = as.data.frame(GetAssayData(seurat_clust, slot = "data")) 
-  # Transform count into logical
-  tab_clust = tab_clust %>% mutate_all(as.logical)
-  # Calculate number of peaks detected per cell
-  tab_clust = data.frame(nbpeaks = colSums(tab_clust)) %>% 
-    tibble::rownames_to_column(var = "cell") %>%
-    dplyr::mutate(clust = clust)
-  # Bind in general tab
-  tab_peak_clust = rbind(tab_clust, tab_peak_clust)
-  
-}
-
-tab_peak_stat = tab_peak_clust %>%
-  dplyr::group_by(clust) %>%
-  dplyr::mutate(nbcells = n(),
-                median_nbpeaks = median(nbpeaks),
-                mean_nbpeaks = round(mean(nbpeaks)),
-                max_nbpeaks = max(nbpeaks),
-                min_nbpeaks = min(nbpeaks),
-                var_nbpeaks = round(sd(nbpeaks))) %>%
-  dplyr::ungroup() %>%
-  dplyr::select(clust, nbcells, median_nbpeaks, mean_nbpeaks, max_nbpeaks, min_nbpeaks, var_nbpeaks) %>%
-  dplyr::distinct()
-tab_peak_stat %>% kable(caption = res) %>% kable_styling()
-
-tab_plot  = left_join(tab_peak_clust, tab_peak_stat)
-plot_peak_clust = ggplot(tab_plot, aes(x = nbpeaks, fill = clust )) +
-  geom_histogram(bins = 50, color = "black", alpha = 0.5) +
-  geom_vline(aes(xintercept = median_nbpeaks, col = clust), linetype = "dashed", size = 1) +
-  ggtitle(label = paste0("Distribution of peaks' number per cell according to cluster (with median) - ", res))
-plot_peak_clust
-
-# Save objects and clean working space
-ggsave(plot = plot_peak_clust, 
-       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_peaks_clust.png"), 
-       width = 14, height = 6)
-write_csv2(tab_peak_clust, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_",res, "_peaks_clust.csv"))
-write_csv2(tab_peak_stat, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_peaks_stat.csv"))
-rm(i, clust, seurat_clust, tab_clust, plot_peak_clust, tab_peak_clust, tab_peak_stat, res, expr, meta_col, tab_plot)
-
-```
-
-```{r, TSS Peaks distribution accross clusters, results = 'hold', fig.width=14, fig.height=6}
-# faire la même chose seulement sur les peaks qui tombent sur les TSS (il y a une fonction normalement qui existe pour ça (avec grange ou autre))
-
-# https://github.com/satijalab/seurat/issues/1053
-
-tab_peak_clust = data.frame(cell = character(), nbpeaks = numeric(), clust = character())
-meta_col = paste0("peaks_snn_", res)
-
-for ( i in 1:length(levels((seurat_obj@meta.data)[,meta_col])) ) {
-
-  # Extract cluster number
-  clust = levels((seurat_obj@meta.data)[,meta_col])[i]
-  # Create subset of seurat object with cells from clust x
-  expr = FetchData(object = seurat_obj, vars = meta_col)
-  seurat_clust = seurat_obj[, which(x = (expr == clust))]
-  # Check if the subset was correctly done
-  print(table((seurat_clust@meta.data)[,meta_col])) 
-  # Extract peak count matrix of clust x from general seurat object
-  tab_clust = as.data.frame(GetAssayData(seurat_clust, slot = "data")) 
-  # Transform count into logical
-  tab_clust = tab_clust %>% mutate_all(as.logical)
-  # Calculate number of peaks detected per cell
-  tab_clust = data.frame(nbpeaks = colSums(tab_clust)) %>% 
-    tibble::rownames_to_column(var = "cell") %>%
-    dplyr::mutate(clust = clust)
-  # Bind in general tab
-  tab_peak_clust = rbind(tab_clust, tab_peak_clust)
-  
-}
-
-tab_peak_stat = tab_peak_clust %>%
-  dplyr::group_by(clust) %>%
-  dplyr::mutate(nbcells = n(),
-                median_nbpeaks = median(nbpeaks),
-                mean_nbpeaks = round(mean(nbpeaks)),
-                max_nbpeaks = max(nbpeaks),
-                min_nbpeaks = min(nbpeaks),
-                var_nbpeaks = round(sd(nbpeaks))) %>%
-  dplyr::ungroup() %>%
-  dplyr::select(clust, nbcells, median_nbpeaks, mean_nbpeaks, max_nbpeaks, min_nbpeaks, var_nbpeaks) %>%
-  dplyr::distinct()
-tab_peak_stat %>% kable(caption = res) %>% kable_styling()
-
-tab_plot  = left_join(tab_peak_clust, tab_peak_stat)
-plot_peak_clust = ggplot(tab_plot, aes(x = nbpeaks, fill = clust )) +
-  geom_histogram(bins = 50, color = "black", alpha = 0.5) +
-  geom_vline(aes(xintercept = median_nbpeaks, col = clust), linetype = "dashed", size = 1) +
-  ggtitle(label = paste0("Distribution of peaks' number per cell according to cluster (with median) - ", res))
-plot_peak_clust
-
-# Save objects and clean working space
-ggsave(plot = plot_peak_clust, 
-       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_peaks_clust.png"), 
-       width = 14, height = 6)
-write_csv2(tab_peak_clust, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_",res, "_peaks_clust.csv"))
-write_csv2(tab_peak_stat, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_peaks_stat.csv"))
-rm(i, clust, seurat_clust, tab_clust, plot_peak_clust, tab_peak_clust, tab_peak_stat, res, expr, meta_col, tab_plot)
-
-```
-
-```{r, Peaks distribution accross clusters in annotations}
-# pour chacun des deux clusters, faire la même distribution mais pour chaque élément/annotation génomique et faire les histogrammes comme pour le bulk
-```
+FONCTIONNEL MAIS A RETRAVAILLER / COMPLETER 
 
 ```{r, Find Differential Accessibility}
 
@@ -656,13 +535,321 @@ dotplot(ego, showCategory = 20)
 # refaire la même chose (ego) avec les foldchange positifs => pour avoir l'info de l'autre cluster
 ```
 
+FONCTIONNEL : 
+
+```{r, Clean Seurat Grange from weird chromosome names}
+
+# à mettre au début ?
+# https://www.biostars.org/p/9466838/
+# https://kasperdanielhansen.github.io/genbioconductor/html/GenomicRanges_seqinfo.html
+
+test = seurat_obj
+
+test@assays$peaks # ChromatinAssay
+test@assays$peaks@ranges # Grange avec 165 599 features (=peaks)
+
+# pourquoi une différence ????
+test@assays$peaks@ranges@seqnames 
+table(test@assays$peaks@ranges@seqnames) # seqnames from grange
+test@assays$peaks@seqinfo@seqnames 
+table(test@assays$peaks@seqinfo@seqnames)
+
+# Enelver les chromosomes bizarres
+test@assays$peaks@ranges = keepStandardChromosomes(test@assays$peaks@ranges) # ne fonctionne pas 
+
+# cette fonction permet d'enlever les noms bizarres dans ranges@seqnames
+test@assays$peaks@ranges = keepStandardChromosomes(test@assays$peaks@ranges, pruning.mode = "coarse")
+table(test@assays$peaks@ranges@seqnames)
+test@assays$peaks@ranges # Grange avec 165 559 features (=peaks) => 40 peaks ont été enlevés (très peu donc pas de biais)
+
+# mais pas dans seqinfo ? pourquoi ? 
+table(test@assays$peaks@seqinfo@seqnames)
+# a Seqinfo object containing allowed sequence names, lengths (or NA), and circularity flag, for each level in levels(seqnames). 
+```
+
+```{r, Associate genomic annotation to peaks in seurat object}
+
+# A METTRE AU DEBUT ! 
+
+# https://www.biostars.org/p/478325/
+  
+# grange de notre échantillon seurat_obj
+# grange_sample = seurat_obj@assays$peaks@ranges # 165 599 ranges (=peaks)
+# mcols(grange_sample)$annotation = "unassigned" # possibilité d'ajouter une colonne metadata 
+# mcols(grange_sample)$gene_name = "unknown " # possibilité d'ajouter une colonne metadata 
+# table(grange_sample$annotation) # objectif => remplir la colonne metadata avec les annotations
+# table(grange_sample$gene_name) 
+# 
+# # grange de la BDD
+# grange_annot = Annotation(seurat_obj) # 3 021 151 ranges (= peaks)
+# levels(mcols(grange_annot)$type) # 703 128 cds, 1 101 668 exon, 940 523 gap, 275 832 utr
+# table(grange_annot$type) # on veut extraire les peaks correspondant à la liste des 703128 peaks qui tombent dans cds
+# # !!! on a ici tous les peaks de la BDD et pas ceux qui correspondent à l'échantillon !!! 
+# 
+# # Overlaps entre les deux granges 
+# overlaps = findOverlaps(query = grange_sample, subject = grange_annot) # 897 646 hits 
+# overlaps2 = findOverlaps(query = grange_sample, subject = grange_annot, select = "first") # premier de annot qui correspond à sample
+# 
+# # ajout de la colonne de metadonnées
+# mcols(grange_sample)$annotation <- mcols(grange_annot)$type[overlaps2]
+# mcols(grange_sample)$gene_name <- mcols(grange_annot)$gene_name[overlaps2]
+
+######################################################################################################
+# => problème avec les annotations => aller chercher le fichier FANTOM5 de MARSATAC
+
+# grange => seurat_obj@assays$peaks@ranges
+
+all_annotations = readRDS(paste0(dir_git, "/data/Annotation_TSS_pm1kb_int_ex_53utr_ctcf_cpg_woThisto_FANTOM5_prom_gr.rds"))
+
+# cf script annotate grange pour ajouter les annotations
+annotations_types = levels(factor(all_annotations$annotation))
+
+# First a matrix is created filled with FALSE and added to the Grange
+metadata = matrix(FALSE, ncol = length(annotations_types), nrow = length(seurat_obj@assays$peaks@ranges))
+colnames(metadata) = annotations_types
+mcols(seurat_obj@assays$peaks@ranges) = metadata # ajout de metadata : une colonne par annotation toutes à false au démarrage
+# for each of the annotations types an overlap is calculated and used to assigned the peak as TRUE when overlapping with the annotation
+for (i in 1:ncol(metadata)){
+  sub_annot = all_annotations[all_annotations$annotation == annotations_types[i]]
+  overlaps = findOverlaps(seurat_obj@assays$peaks@ranges, sub_annot)
+  mcols(seurat_obj@assays$peaks@ranges)[queryHits(overlaps),i] = TRUE
+}
+
+colnames(mcols(seurat_obj@assays$peaks@ranges)) = case_when(colnames(mcols(seurat_obj@assays$peaks@ranges)) == "3' UTR" ~ "UTR3P",
+                                colnames(mcols(seurat_obj@assays$peaks@ranges)) == "5' UTR" ~ "UTR5P",
+                                colnames(mcols(seurat_obj@assays$peaks@ranges)) == "CpG Island" ~ "CpG",
+                                colnames(mcols(seurat_obj@assays$peaks@ranges)) == "CTCF" ~ "CTCF",
+                                colnames(mcols(seurat_obj@assays$peaks@ranges)) == "EXON" ~ "Exons",
+                                colnames(mcols(seurat_obj@assays$peaks@ranges)) == "FANTOM5_promoter" ~ "FANTOM5_promoter",
+                                colnames(mcols(seurat_obj@assays$peaks@ranges)) == "INTRON" ~ "Introns",
+                                colnames(mcols(seurat_obj@assays$peaks@ranges)) == "Promoter_+-1000"  ~ "TSS_mp1kb")
+
+mcols(seurat_obj@assays$peaks@ranges) = as_tibble(mcols(seurat_obj@assays$peaks@ranges)) %>%
+  dplyr::mutate(Intergenic = ifelse(UTR3P == FALSE & 
+                                    UTR5P == FALSE & 
+                                    Exons == FALSE & 
+                                    Introns == FALSE & 
+                                    FANTOM5_promoter == FALSE & 
+                                    TSS_mp1kb == FALSE, TRUE, FALSE)) %>%
+  dplyr::mutate(CpG_Intergenic = ifelse(Intergenic == TRUE & CpG == TRUE, TRUE, FALSE)) %>%
+  dplyr::mutate(CpG_Intergenic = ifelse(Intergenic == TRUE & CpG == TRUE, TRUE, FALSE)) %>%
+  dplyr::mutate(CTCF_Intergenic = ifelse(Intergenic == TRUE & CTCF == TRUE, TRUE, FALSE)) %>%
+  dplyr::mutate(CTCF_in_intron = ifelse(Introns == TRUE & CTCF == TRUE, TRUE, FALSE)) %>%
+  dplyr::mutate(CTCF_in_exon = ifelse(Exons == TRUE & CTCF == TRUE, TRUE, FALSE))
+
+seurat_obj@assays$peaks@ranges
+
+rm(all_annotations, sub_annot, metadata, annotations_types)
+```
+
+```{r, Peaks distribution accross clusters, results = 'hold', fig.width=14, fig.height=6}
+
+# OK fonctionnel
+# https://github.com/satijalab/seurat/issues/1053
+
+tab_peak_clust = data.frame(cell = character(), nbpeaks = numeric(), clust = character())
+meta_col = paste0("peaks_snn_", res)
+
+for ( i in 1:length(levels((seurat_obj@meta.data)[,meta_col])) ) {
+
+  # Extract cluster number
+  clust = levels((seurat_obj@meta.data)[,meta_col])[i]
+  # Create subset of seurat object with cells from clust x
+  expr = FetchData(object = seurat_obj, vars = meta_col)
+  seurat_clust = seurat_obj[, which(x = (expr == clust))]
+  # Check if the subset was correctly done
+  print(table((seurat_clust@meta.data)[,meta_col])) 
+  # Extract peak count matrix of clust x from general seurat object
+  tab_clust = as.data.frame(GetAssayData(seurat_clust, slot = "data")) 
+  # Transform count into logical
+  tab_clust = tab_clust %>% mutate_all(as.logical)
+  # Calculate number of peaks detected per cell
+  tab_clust = data.frame(nbpeaks = colSums(tab_clust)) %>% 
+    tibble::rownames_to_column(var = "cell") %>%
+    dplyr::mutate(clust = clust)
+  # Bind in general tab
+  tab_peak_clust = rbind(tab_clust, tab_peak_clust)
+  
+}
+
+tab_peak_stat = tab_peak_clust %>%
+  dplyr::group_by(clust) %>%
+  dplyr::mutate(nbcells = n(),
+                median_nbpeaks = median(nbpeaks),
+                mean_nbpeaks = round(mean(nbpeaks)),
+                max_nbpeaks = max(nbpeaks),
+                min_nbpeaks = min(nbpeaks),
+                var_nbpeaks = round(sd(nbpeaks))) %>%
+  dplyr::ungroup() %>%
+  dplyr::select(clust, nbcells, median_nbpeaks, mean_nbpeaks, max_nbpeaks, min_nbpeaks, var_nbpeaks) %>%
+  dplyr::distinct()
+tab_peak_stat %>% kable(caption = res) %>% kable_styling()
+
+tab_plot  = left_join(tab_peak_clust, tab_peak_stat)
+plot_peak_clust = ggplot(tab_plot, aes(x = nbpeaks, fill = clust )) +
+  geom_histogram(bins = 50, color = "black", alpha = 0.5) +
+  geom_vline(aes(xintercept = median_nbpeaks, col = clust), linetype = "dashed", size = 1) +
+  ggtitle(label = paste0("Distribution of peaks' number per cell according to cluster (with median) - ", res))
+plot_peak_clust
+
+# Save objects and clean working space
+ggsave(plot = plot_peak_clust, 
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_peaks_clust.png"), 
+       width = 14, height = 6)
+write_csv2(tab_peak_clust, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_",res, "_peaks_clust.csv"))
+write_csv2(tab_peak_stat, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_peaks_stat.csv"))
+rm(i, clust, seurat_clust, tab_clust, plot_peak_clust, tab_peak_clust, tab_peak_stat, res, expr, meta_col, tab_plot)
+
+```
+
+EN COURS : 
+
+```{r, TSS Peaks distribution accross clusters, results = 'hold', fig.width=14, fig.height=6}
+
+# Extract cells from clust x (same code as earlier)
+meta_col = paste0("peaks_snn_", res)
+clust = levels((seurat_obj@meta.data)[,meta_col])[1] # test avec le cluster 0
+expr = FetchData(object = seurat_obj, vars = meta_col)
+seurat_clust = seurat_obj[, which(x = (expr == clust))]
+print(table((seurat_clust@meta.data)[,meta_col])) 
+# tab_clust = as.data.frame(GetAssayData(seurat_clust, slot = "data")) # Le cluster 0 contient 1971 cellules (en res 0.2)
+# tab_clust = tab_clust[rowSums(tab_clust[])>0, ] # on enlève les peaks qui ne sont pas du tout détectés dans aucune cellule (tous les peaks sont détectés)
+# list_peaks = data.frame(peak = rownames(tab_clust)) # pas très utile car tous les peaks sont détectés
+
+# https://www.biostars.org/p/108080/
+seurat_clust_tss = seurat_clust
+seurat_clust_tss@assays$peaks@ranges = seurat_clust@assays$peaks@ranges[seurat_clust@assays$peaks@ranges$TSS_mp1kb == TRUE] 
+
+seurat_clust@assays$peaks@ranges # 165 599 ranges 
+seurat_clust_tss@assays$peaks@ranges # 9508 ranges
+
+# Table avec toutes les cellules de l'échantillon et tous les peaks détectés : 5814 cellules et 165 599 peaks détectés
+# tab_all = as.data.frame(GetAssayData(seurat_obj, slot = "data")) 
+# list_peaks = data.frame(peak = rownames(tab_all))
+
+# attention : quand on fait un subset de l'objet seurat, le grange annotation n'est pas modifié 
+# # Extract annotations name from BDD grange store in seurat object
+# grange_annot = Annotation(seurat_clust) # 3 021 151 ranges (= peaks)
+# # idem que si on faisait Annotation(seurat_obj)
+# levels(mcols(grange_annot)$type) # 703 128 cds, 1 101 668 exon, 940 523 gap, 275 832 utr
+# table(grange_annot$type) # on veut extraire les peaks correspondant à la liste des 703128 peaks qui tombent dans cds
+# # !!! on a ici tous les peaks de la BDD et pas ceux qui correspondent à l'échantillon !!! 
+# # tab_annot = data.frame(seqnames = grange_annot@seqnames, 
+# #                   ranges = grange_annot@ranges, 
+# #                   type = grange_annot$type, 
+# #                   gene_name = grange_annot$gene_name)
+# # tab_annot = tab_annot %>% 
+# #   dplyr::mutate(peak = paste0(seqnames, "-", ranges.start, "-", ranges.end)) %>%
+# #   dplyr::select(peak, type, gene_name)
+# # # mettre en relation le nom de nos peaks et leurs annotations
+# test = full_join(list_peaks, tab_annot, by = "peak") # ne fonctionne pas car les peaks ne correspondent pas exactement il faut prendre les overlaps 
+# Extraire les annotations correspondant aux peaks de clust0 uniquement 
+# grange_clust = seurat_clust@assays$peaks@ranges # grange contenant les 165 599 peaks de l'échantillon 
+# a = findOverlaps(query = grange_clust, subject = grange_annot)  # 897 646 hits détectés
+# b = subjectHits(a) # récupération des indices des annotations ayant un hit avec les peaks du sample
+# c = unique(b) # plus que 608 506 indices 
+# annot_sample = grange_annot[c] # grange avec 897 646 éléments 
+
+
+# création d'un grange avec seulement les peaks voulus 
+library(plyranges) # https://support.bioconductor.org/p/133546/
+grange_cds = grange %>% plyranges::filter(type == "cds") # grange contenant seulement les 703128 peaks cds
+table(grange_cds$type)
+
+# grange de Annotation => 3 021 151 ranges
+# grange_cds => 703 128 ranges
+# seurat_clust@assays$peaks@ranges
+# grange de seurat_clust => 165 599 ranges ?
+
+# a = findOverlaps(query = seurat_clust@assays$peaks@ranges, subject = grange)  
+# b = queryHits
+  
+# verlap entre le seurat object et le grange_cds pour conserver seulement les peaks en commun
+
+# https://www.biostars.org/p/473162/ 
+# findOverlaps will return an index in each sample for every overlap. For the case where there are multiple overlaps for a range, there is an index created for each overlap. This is why changing the order of the subject and query doesn't change the number of rows.
+# tss_overlap = findOverlaps(query = seurat_clust@assays$peaks, subject = grange_cds)
+# tss_overlap = findOverlaps(query = seurat_clust, subject = grange_cds) # problème avec la queryLength 165599 ? il devrait être plus grand que subjectLength
+# tss_ind = queryHits(tss_overlap) # 83652 ind => on devrait en avoir 703128 ?
+# test = seurat_clust[tss_ind]
+# grange_new = Annotation(test)
+# table(grange_new$type)
+
+
+# ne fonctionne pas 
+# subsetByOverlaps(seurat_clust, grange_cds)
+# FractionCountsInRegion(seurat_clust, grange_cds, assay = "peaks")
+# ne fonctionne pas 
+# test_obj = seurat_clust[which(Annotation(seurat_clust) == test_gr)]
+# table(Annotation(test_obj)$type)
+# ne fonctionne pas 
+# test = seurat_clust[which(Annotation(seurat_clust)$type == "cds")]
+# table(Annotation(test)$type)
+
+
+# Idée Romuald
+TSS_db_peaks = Annotation(seurat_clust)$type[which(Annotation(seurat_clust)$type == "cds")]
+TSS_overlap = findOverlaps(seurat_clust$peaks, subject = TSS_db_peaks)
+TSS_ind = queryOverlapHits(TSS_overlap)
+seurat_clust[TSS_ind]
+
+  
+```
+
+```{r, Peaks distribution accross clusters in annotations}
+# pour chacun des deux clusters, faire la même distribution mais pour chaque élément/annotation génomique et faire les histogrammes comme pour le bulk
+```
 
 ```{r, Cluster gene specific }
+
 # sortir la liste de tous les gènes qui ont un peak dans le clust0, dans le clust1, enlever l'intersection et regarder ce qui n'est pas en commun :
   # - sous sampling que les peaks qui tombent dans TSS (refaire FindMarkers ?)
   # - utiliser closest feature sur tous ces peaks par cluster
   # - faire l'exclusion pour sortir la liste particulière de chaque cluster
   # - GO sur les deux listes
+
+#################################
+# sur touts les peaks 
+#################################
+
+meta_col = paste0("peaks_snn_res.0.2")
+
+# Subset of seurat object to keep only cells from clust0
+clust = "0"
+expr = FetchData(object = seurat_obj, vars = meta_col)
+seurat_clust0 = seurat_obj[, which(x = (expr == clust))]
+# seurat_clust0@assays$peaks
+# print(table((seurat_clust0@meta.data)[,meta_col])) 
+# granges(seurat_clust0)
+# Identify closest genes from peaks
+clust0_gene <- ClosestFeature(seurat_clust0, regions = granges(seurat_clust0)) 
+clust0_gene_list = as.vector(clust0_gene$gene_name)
+# tous les peaks sont présents dans les deux clusters mais pas en même proportion ?
+
+# Subset of seurat object to keep only cells from clust1
+clust = "1"
+expr = FetchData(object = seurat_obj, vars = meta_col)
+seurat_clust1 = seurat_obj[, which(x = (expr == clust))]
+# Identify closest genes from peaks
+clust1_gene <- ClosestFeature(seurat_clust1, regions = granges(seurat_clust1))
+clust1_gene_list = as.vector(clust1_gene$gene_name)
+
+# pb : tous les gènes sont représentés dans les deux clusters, il faut s'intéresser aux proportions d'accessibilité
+table(clust0_gene_list == clust1_gene_list)
+
+
+################################################################################
+# sur les 200 peaks les plus représentés (le plus de cellules qui le présentent)
+################################################################################
+
+tab_clust0 = as.data.frame(GetAssayData(seurat_clust0, slot = "data")) %>% mutate_all(as.logical)
+tab_peak_clust0 = data.frame(nbcells = rowSums(tab_clust0)) %>% 
+  tibble::rownames_to_column(var = "peak") %>%
+  dplyr::arrange(desc(nbcells))
+tab_top200 = head(tab_peak_clust0, 200)
+
+
+
 ```
 
 ```{r AddChromatinModule}
