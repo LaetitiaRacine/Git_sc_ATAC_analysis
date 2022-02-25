@@ -27,6 +27,8 @@ library(readr)
 library(dplyr)
 library(cowplot)
 library(clusterProfiler) # to perform gene ontology analysis
+library(tidyverse) # to use mutate_all
+library(kableExtra)
 
 ```
 
@@ -347,7 +349,7 @@ plot_kmean = plot_grid(
     DimPlot(seurat_obj, reduction = "umap", group.by = "kmeans_10") + ggtitle("kmeans_10"))
 plot_kmean
 
-# Save 
+# Save plot
 ggsave(plot = plot_kmean, 
        filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_kmean.png"), 
        width = 18, height = 8)
@@ -367,7 +369,7 @@ saveRDS(object = seurat_obj, file = paste0(dir_output, currentDate, "/seurat_obj
 
 
 
-# . Association des peaks à l'activité du gène le plus proche
+# .Association des peaks à l'activité du gène le plus proche
 
 ```{r, Load FACULTATIF}
 # seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_dwn_preprocess_dim2-10.rds")) 
@@ -435,27 +437,88 @@ saveRDS(object = seurat_obj, file = paste0(dir_output, currentDate, "/seurat_obj
 
 
 
-# . Investigation sur les clusters obtenus 
-
-- trouver l'info pour le clust0 et clust1 du nombre de peaks par cellule (fouiller dans la structure de l'objet seurat => sommer/trouver une fonction) et en faire une distribution => si beaucoup plus de peaks par cellule dans gros cluster (clust0= ce serait cool)
+# .Investigation sur les clusters obtenus 
 
 ```{r, Load FACULTATIF}
 # seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_dwn_geneact_dim2-10.rds")) 
 seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_geneact_dim2-30.rds")) 
 ```
 
-```{r, Find Differential Accessibility}
-
+```{r, Change DefaultAssay}
 # Change back to working with peaks instead of gene activities
 DefaultAssay(seurat_obj) <- 'peaks'
+```
+
+```{r, Peaks distribution accross clusters}
+
+# Choose your resolutions
+res = "res0.1"
+# à écrire si inspiré
+
+tab_peak_clust = data.frame(cell = character(), nbpeaks = numeric(), clust = character())
+
+# Changer la résolution à la main !!!
+for (i in 1:length(levels(seurat_obj$peaks_snn_res.0.1))) {
+  
+  # Extract cluster number
+  clust = levels(seurat_obj$peaks_snn_res.0.1)[i]
+  # Create subset of seurat object with cells from clust x
+  seurat_clust = subset(seurat_obj, subset = peaks_snn_res.0.1 == clust)
+  # Check if the subset was correctly done
+  print(table(seurat_clust@meta.data$peaks_snn_res.0.1)) 
+  # Extract peak count matrix of clust x from general seurat object
+  tab_clust = as.data.frame(GetAssayData(seurat_clust, slot = "data")) 
+  # Transform count into logical
+  tab_clust = tab_clust %>% mutate_all(as.logical)
+  # Calculate number of peaks detected per cell
+  tab_clust = data.frame(nbpeaks = colSums(tab_clust)) %>% 
+    tibble::rownames_to_column(var = "cell") %>%
+    dplyr::mutate(clust = clust)
+  # Bind in general tab
+  tab_peak_clust = rbind(tab_clust, tab_peak_clust)
+  
+}
+
+tab_peak_stat = tab_peak_clust %>%
+  dplyr::group_by(clust) %>%
+  dplyr::mutate(nbcells = n(),
+                median_nbpeaks = median(nbpeaks),
+                mean_nbpeaks = round(mean(nbpeaks)),
+                max_nbpeaks = max(nbpeaks),
+                min_nbpeaks = min(nbpeaks),
+                var_nbpeaks = round(sd(nbpeaks))) %>%
+  dplyr::ungroup() %>%
+  dplyr::select(clust, nbcells, median_nbpeaks, mean_nbpeaks, max_nbpeaks, min_nbpeaks, var_nbpeaks) %>%
+  dplyr::distinct()
+tab_peak_stat %>% kable(caption = res) %>% kable_styling()
+
+plot_peak_clust = ggplot(tab_peak_clust, aes(x = nbpeaks, fill = clust)) +
+  geom_histogram(bins = 50, color = "black", alpha = 0.5) +
+  ggtitle(label = paste0("Distribution of peaks' number per cell according to cluster - ", res))
+plot_peak_clust
+
+# Save objects and clean working space
+ggsave(plot = plot_peak_clust, 
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_peaks_clust.png"), 
+       width = 8, height = 6)
+write_csv2(tab_peak_clust, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_",res, "_peaks_clust.csv"))
+write_csv2(tab_peak_stat, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_peaks_stat.csv"))
+rm(i, clust, seurat_clust, tab_clust, plot_peak_clust, tab_peak_clust, tab_peak_stat)
+
+```
+
+```{r, Peaks distribution accross clusters in annotations}
+# faire la même chose seulement sur les peaks qui tombent sur les TSS (il y a une fonction normalement qui existe pour ça (avec grange ou autre))
+# pour chacun des deux clusters, faire la même distribution mais pour chaque élément/annotation génomique et faire les histogrammes comme pour le bulk
+```
+
+```{r, Find Differential Accessibility}
 
 # Extract cells from clust0 and clust1
-clust0_cells = names(seurat_obj$peaks_snn_res.0.05[which(seurat_obj$peaks_snn_res.0.05 == 0)])
-nbcells_clust0 = length(clust0_cells)
-  
-clust1_cells = names(seurat_obj$peaks_snn_res.0.05[which(seurat_obj$peaks_snn_res.0.05 == 1)])
-nbcells_clust1 = length(clust1_cells)
-
+# clust0_cells = names(seurat_obj$peaks_snn_res.0.05[which(seurat_obj$peaks_snn_res.0.05 == 0)])
+# nbcells_clust0 = length(clust0_cells)
+# clust1_cells = names(seurat_obj$peaks_snn_res.0.05[which(seurat_obj$peaks_snn_res.0.05 == 1)])
+# nbcells_clust1 = length(clust1_cells)
 
 
 # Take values from 0.05 resolution
@@ -489,7 +552,6 @@ DA_closePeaks <- rownames(da_peaks[da_peaks$avg_log2FC < -0.5, ])
 
 ```
 
-
 ```{r Identifying peaks with high fold change}
 
 # Récupère le gène le plus proche des peaks identifiés
@@ -522,23 +584,26 @@ ego <- enrichGO(gene = DA_closePeaks_gene$ENTREZID,
 
 dotplot(ego, showCategory = 20)
 
+
+# refaire la même chose (ego) avec les foldchange positifs => pour avoir l'info de l'autre cluster
 ```
 
+```{r, Cluster gene specific }
+# sortir la liste de tous les gènes qui ont un peak dans le clust0, dans le clust1, enlever l'intersection et regarder ce qui n'est pas en commun :
+  # - sous sampling que les peaks qui tombent dans TSS (refaire FindMarkers ?)
+  # - utiliser closest feature sur tous ces peaks par cluster
+  # - faire l'exclusion pour sortir la liste particulière de chaque cluster
+  # - GO sur les deux listes
+```
 
-A faire :
+```{r AddChromatinModule}
 
-- refaire la même chose (ego) avec les foldchange positifs => pour avoir l'info de l'autre cluster
-- trouver l'info pour le clust0 et clust1 du nombre de peaks par cellule (fouiller dans la structure de l'objet seurat => sommer/trouver une fonction)
-et en faire une distribution => si beaucoup plus de peaks par cellule dans gros cluster (clust0= ce serait cool)
-- faire la même chose seulement sur les peaks qui tombent sur les TSS (il y a une fonction normalement qui existe pour ça (avec grange ou autre))
-- pour chacun des deux clusters, faire la même distribution mais pour chaque élément/annotation génomique et faire les histogrammes comme pour le bulk
-
-- extraire la liste des peaks de chaque cluster : quel metric utiliser ? nb de reads, peaks ?
-- sortir la liste de tous les gènes qui ont un peak dans le clust0, dans le clust1, enlever l'intersection et regarder ce qui n'est pas en commun :
-  - sous sampling que les peaks qui tombent dans TSS (refaire FindMarkers ?)
-  - utiliser closest feature sur tous ces peaks par cluster
-  - faire l'exclusion pour sortir la liste particulière de chaque cluster
-  - GO sur les deux listes
+# Trouver des listes de gènes qui  nous intéressent, genre "souche, cellule T" ou bien même encore plus simplement les listes des gènes de chaque cluster de CALISTA (!)
+# Choper les peaks qui tombe dans les TSS de ces gènes là
+# Donner ces listes de gènes à la fonction AddChromatinModule
+# Espèrer que le gros cluster corresponde au cluster 2 de Calista et que le petit au cluster 3/4/5
+# Ou alors  espèrer que le gros cluster ait une signature plus "souche" que le cluster petit
+```
 
 
 
