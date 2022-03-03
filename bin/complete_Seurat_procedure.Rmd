@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 *Résumé du code* : ce script permet d'analyser les données du point scATACseq sur des cellules cultivées pendant 24h en MP.  
 La première partie correspond à une prise en main de la manipulation des objets Seurat.  
 La deuxième partie permet de vérifier la qualité des données récupérées.  
-**Code inspiré de** : https://satijalab.org/signac/articles/pbmc_vignette.html 
+**Code en partie inspiré de** : https://satijalab.org/signac/articles/pbmc_vignette.html 
 
 ```{r Libraries, message=F, echo=FALSE, warning=FALSE, results='hide'}
 
@@ -37,12 +37,13 @@ library(kableExtra)
 dir_git = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/"
 dir_input = "~/Bureau/scATAC_raw_data/ATAC_Ctrl_MP/"
 dir_output = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/exp/complete_Seurat_procedure/"
-currentDate <- paste0(substr(Sys.Date(), 1,4), substr(Sys.Date(),6,7), substr(Sys.Date(),9, 10))
-# currentDate = "20220224"
+# currentDate <- paste0(substr(Sys.Date(), 1,4), substr(Sys.Date(),6,7), substr(Sys.Date(),9, 10))
+currentDate = "20220301"
 dir.create(path = paste0(dir_output, currentDate))
 
 # à effacer quand code fini (redondant avec partie préprocessing)
 dims_choice = "2:30"
+dims_choice_char = "2-30"
 ```
 
 <!--*************************************************************************-->
@@ -103,10 +104,10 @@ Idents(object = seurat_obj) <- "MP"
 
 # Downsample the number of cells per identity class
 # Creation of a downsampled object to test and develop the code
-# seurat_obj_dwn = subset(x = seurat_obj, downsample = 100)
+seurat_obj_dwn = subset(x = seurat_obj, downsample = 500)
 # Do we work on all seurat_object or downsampled one ?
-# seurat_obj = seurat_obj_dwn
-# rm(seurat_obj_dwn)
+seurat_obj = seurat_obj_dwn
+rm(seurat_obj_dwn)
 
 ##########################################
 ## cell embedding and feature loadings ##
@@ -136,7 +137,7 @@ Idents(object = seurat_obj) <- "MP"
 
 ```
 
-```{r, Clean Seurat Grange from non standard chromosome names}
+```{r, Clean Seurat Grange from non standard chromosome names, eval = FALSE}
 
 # pose des problèmes avec le clustering ! 
 # quand on fait cela, on n'a plus le même nombre de peaks entre le grange et le chromatinAssay
@@ -160,11 +161,11 @@ Idents(object = seurat_obj) <- "MP"
 # table(seurat_obj@assays$peaks@ranges@seqnames)
 # seurat_obj@assays$peaks@ranges
 
+
+# Passage d'un Grange à 165 599 features à 165 559 features (=peaks) => 40 peaks ont été enlevés (très peu donc pas de biais)
 ```
 
-Passage d'un Grange à 165 599 features à 165 559 features (=peaks) => 40 peaks ont été enlevés (très peu donc pas de biais)
-
-```{r, Add annotation file}
+```{r, Add annotation file, warning=FALSE, message=FALSE}
 
 # Needed for TSS Enrichment (quality control function)
 # Extract gene annotations from EnsDb and attach it to the seurat object (all the BDD annotations)
@@ -300,7 +301,7 @@ rm(plot_quality_vln)
 
 ```
 
-```{r, Save FACULTATIF}
+```{r, Save FACULTATIF, eval = FALSE}
 # saveRDS(object = seurat_obj, file = paste0(dir_output, currentDate, "/seurat_obj_dwn_qc.rds")) 
 saveRDS(object = seurat_obj, file = paste0(dir_output, currentDate, "/seurat_obj_qc.rds")) 
 ```
@@ -311,7 +312,7 @@ saveRDS(object = seurat_obj, file = paste0(dir_output, currentDate, "/seurat_obj
 
 # .Préproccessing des données : normalisation et réductions de dimensions
 
-```{r, LOAD FACULTATIF}
+```{r, LOAD FACULTATIF, eval = FALSE}
 # seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_dwn_qc.rds")) 
 seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_qc.rds")) 
 ```
@@ -440,7 +441,7 @@ rm(plot_kmean, k)
 
 ```
 
-```{r, Save FACULTATIF}
+```{r, Save FACULTATIF, eval = FALSE}
 # saveRDS(object = seurat_obj, file = paste0(dir_output, currentDate, "/seurat_obj_dwn_preprocess_dim", dims_choice_char,".rds")) 
 saveRDS(object = seurat_obj, file = paste0(dir_output, currentDate, "/seurat_obj_preprocess_dim", dims_choice_char,".rds")) 
 ```
@@ -454,7 +455,7 @@ saveRDS(object = seurat_obj, file = paste0(dir_output, currentDate, "/seurat_obj
 
 # .Association des peaks à l'activité du gène le plus proche
 
-```{r, Load FACULTATIF}
+```{r, Load FACULTATIF, eval = FALSE}
 # seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_dwn_preprocess_dim2-10.rds")) 
 seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_preprocess_dim2-30.rds")) 
 ```
@@ -522,7 +523,7 @@ saveRDS(object = seurat_obj, file = paste0(dir_output, currentDate, "/seurat_obj
 
 # .Investigation sur les clusters obtenus 
 
-```{r, Load FACULTATIF}
+```{r, Load FACULTATIF, eval = FALSE}
 # seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_dwn_geneact_dim2-10.rds")) 
 seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_geneact_dim2-30.rds")) 
 ```
@@ -538,11 +539,6 @@ meta_col = paste0("peaks_snn_", res)
 Idents(seurat_obj) = (seurat_obj@meta.data)[,meta_col]
 
 ```
-
-
-FONCTIONNEL :  
-- si ça a disparu, alors faire le SetAssayData.chromatinassay (new.data = ranges.keep) avec ranges.keep = rownames(seurat_clust)
-
 
 ```{r, Peaks distribution per cell across clusters - tabs creation}
 
@@ -623,12 +619,12 @@ rm(temp_bulkpeaks, temp_distripeaks, peaks_name_list, clust, seurat_clust, i, ex
 
 ```
 
-```{r, Peaks distribution per cell across clusters - tabs visualization}
+```{r, Peaks distribution per cell across clusters - visualization, results = 'hold', fig.width=20, fig.height=12}
 
 # load files (facultatif)
-# tab_bulkpeaks_clust = read_csv2(paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_bulkpeaks.csv"))
-# tab_distripeaks_clust = read_csv2(paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_distripeaks.csv"))
-# tab_distripeaks_stat = read_csv2(paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_distripeaks_stat.csv"))
+tab_bulkpeaks_clust = read_csv2(paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_bulkpeaks.csv"))
+tab_distripeaks_clust = read_csv2(paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_distripeaks.csv"))
+tab_distripeaks_stat = read_csv2(paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_distripeaks_stat.csv"))
 
 # Visualize output tab
 tab_distripeaks_clust %>% 
@@ -646,10 +642,6 @@ tab_bulkpeaks_clust %>%
   kable_styling() %>%
   scroll_box(height = "250px", width = "100%")
 
-```
-
-```{r, Peaks distribution per cell across clusters - plots, results = 'hold', fig.width=20, fig.height=12}
-  
 # Histogram : nbpeaks per annotation per cluster
 plot_bulkpeak = ggplot(tab_bulkpeaks_clust, aes(x=annotation, y=total_nbpeaks, fill=clust)) +
   geom_bar(stat="identity", position=position_dodge()) +
@@ -660,74 +652,407 @@ plot_bulkpeak
 
 # Distribution : nbpeaks per cell per annotation 
 tab_plot  = full_join(tab_distripeaks_clust, tab_distripeaks_stat, by = c("peaks_category", "clust"))
+tab_plot$clust = as.factor(tab_plot$clust)
 plot_distripeak = ggplot(tab_plot, aes(x=total_nbpeaks, fill=clust)) +
   geom_histogram(bins = 50, color = "black", alpha = 0.5) +
-  geom_vline(aes(xintercept = median_nbpeaks_percell, col = clust), linetype = "dashed", size = 1) +
-  ggtitle(label = paste0("Distribution of peaks' number per cell according to cluster (with median) - ", res, " / ATTENTION : different scales !")) +
+  geom_vline(aes(xintercept = median_nbpeaks_percell, col=clust), linetype = "dashed", size = 1) +
+  ggtitle(label = paste0("Peaks' distribution per cell according to cluster (with median) - ", res, " !!! Different scales !!!")) +
   ylab(label = "CELL COUNT") +
-  facet_wrap(facets = .~peaks_category, scales = "free") +
-  theme(axis.title.x = element_blank())
+  xlab("NBPEAKS PER CELL") +
+  facet_wrap(facets = .~peaks_category, scales = "free") 
 plot_distripeak
 
-# Save objects and clean working space
+# Save objects
 ggsave(plot = plot_bulkpeak,
        filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_hist_annot_clust_bulk.png"),
        width = 14, height = 6)
 ggsave(plot = plot_distripeak,
        filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_distri_annot_clust_sc.png"),
-       width = 14, height = 6)
-rm(tab_bulkpeaks_clust, tab_distripeaks_clust, tab_distripeaks_stat, tab_plot, plot_distripeak, plot_bulkpeak, res, meta_col)
+       width = 16, height = 10)
+```
+
+```{r, Peaks distribution per cell across clusters - Focus Clust0_1 Inter_Prom, results = 'hold', fig.width=20, fig.height=10}
+
+# Calculate difference between median nbpeaks per cell in clust 1 and in clust 0 for each annotation category
+tab_delta = tab_plot %>% 
+  dplyr::select(peaks_category, clust, median_nbpeaks_percell) %>% 
+  dplyr::filter(clust %in% c("0", "1")) %>%
+  dplyr::distinct() %>%
+  dplyr::group_by(peaks_category) %>%
+  dplyr::mutate(diff_clust1_clust0 = median_nbpeaks_percell[clust == "0"] - median_nbpeaks_percell[clust == "1"])
+
+tab_delta %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(height = "250px", width = "100%")
+  
+# Visualize plot woth only promoter and intergenic
+tab_inter_prom = tab_plot %>% dplyr::filter(peaks_category %in% c("peaks_FANTOM5_promoter", "peaks_Intergenic"))
+plot_distri_interprom = ggplot(tab_inter_prom, aes(x=total_nbpeaks, fill=clust)) +
+  geom_histogram(bins = 50, color = "black", alpha = 0.5) +
+  geom_vline(aes(xintercept = median_nbpeaks_percell, col=clust), linetype = "dashed", size = 1) +
+  ggtitle(label = paste0("Peaks' distribution per cell according to cluster (with median) - ", res)) +
+  ylab(label = "CELL COUNT") +
+  xlab("NBPEAKS PER CELL") +
+  facet_wrap(facets = .~peaks_category) 
+
+# Save object and clean working space
+ggsave(plot = plot_distri_interprom,
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_distri_annot_clust_sc_zoominterprom.png"),
+       width = 16, height = 10)
+write_csv2(tab_delta, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_delta_clust1_clust0.csv"))
+rm(tab_bulkpeaks_clust, tab_distripeaks_clust, tab_distripeaks_stat, tab_plot, plot_distripeak, plot_bulkpeak, tab_inter_prom, tab_delta, plot_distri_interprom)
 
 ```
 
-EN COURS : 
+```{r, Verification reads number}
 
-```{r, TSS Peaks distribution accross clusters, results = 'hold', fig.width=14, fig.height=6}
+# somme des reads : est-ce que toutes les cellules versus cellules clust0 versus cellules clust1 ont bien un nombre de reads différents pour les peaks ?
 
-# tab_clust = as.data.frame(GetAssayData(seurat_clust, slot = "data")) # Le cluster 0 contient 1971 cellules (en res 0.2)
-# tab_clust = tab_clust[rowSums(tab_clust[])>0, ] # on enlève les peaks qui ne sont pas du tout détectés dans aucune cellule (tous les peaks sont détectés)
-# list_peaks = data.frame(peak = rownames(tab_clust)) # pas très utile car tous les peaks sont détectés
+# Seurat object with cells from clust0 or clust1
+expr = FetchData(object = seurat_obj, vars = meta_col) 
+seurat_clust0 = seurat_obj[ , which(expr == "0")]
+seurat_clust1 = seurat_obj[ , which(expr == "1")]
 
-# https://www.biostars.org/p/108080/
+# Extract matrix count for each cells 
+tab_all = as.data.frame(GetAssayData(seurat_obj, slot = "data")) 
+tab_clust0 = as.data.frame(GetAssayData(seurat_clust0, slot = "data"))  
+tab_clust1 = as.data.frame(GetAssayData(seurat_clust1, slot = "data"))
+# On a bien trois tableaux avec le même nombre de lignes (peaks) mais qui diffèrent par leur nombre de colonnes (cellules)
 
-# attention : quand on fait un subset de l'objet seurat, le grange annotation n'est pas modifié 
-# # Extract annotations name from BDD grange store in seurat object
-# grange_annot = Annotation(seurat_clust) # 3 021 151 ranges (= peaks)
-# # idem que si on faisait Annotation(seurat_obj)
-# levels(mcols(grange_annot)$type) # 703 128 cds, 1 101 668 exon, 940 523 gap, 275 832 utr
-# table(grange_annot$type) # on veut extraire les peaks correspondant à la liste des 703128 peaks qui tombent dans cds
-# # !!! on a ici tous les peaks de la BDD et pas ceux qui correspondent à l'échantillon !!! 
-# # tab_annot = data.frame(seqnames = grange_annot@seqnames, 
-# #                   ranges = grange_annot@ranges, 
-# #                   type = grange_annot$type, 
-# #                   gene_name = grange_annot$gene_name)
-# # tab_annot = tab_annot %>% 
-# #   dplyr::mutate(peak = paste0(seqnames, "-", ranges.start, "-", ranges.end)) %>%
-# #   dplyr::select(peak, type, gene_name)
-# # # mettre en relation le nom de nos peaks et leurs annotations
-# test = full_join(list_peaks, tab_annot, by = "peak") # ne fonctionne pas car les peaks ne correspondent pas exactement il faut prendre les overlaps 
+# Compare matrix count
+tab_compare = data.frame(nbreads_allcells = rowSums(tab_all),
+                         nbreads_clust0 = rowSums(tab_clust0),
+                         nbreads_clust1 = rowSums(tab_clust1))  %>% 
+  tibble::rownames_to_column(var = "peak_name")
 
-# création d'un grange avec seulement les peaks voulus 
-library(plyranges) # https://support.bioconductor.org/p/133546/
-grange_cds = grange %>% plyranges::filter(type == "cds") # grange contenant seulement les 703128 peaks cds
-table(grange_cds$type)
+# Save object and clean workspace 
+saveRDS(tab_all, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_matrix_count.rds"))
+saveRDS(tab_clust0, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_matrix_count_clust0.rds"))
+saveRDS(tab_clust1, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_matrix_count_clust1.rds"))
+write_csv2(tab_compare, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_nbreads_clust.csv"))
+rm(expr, seurat_clust0, seurat_clust1, tab_all, tab_clust0, tab_clust1, tab_compare)
 
-# grange de Annotation => 3 021 151 ranges
-# grange_cds => 703 128 ranges
-# seurat_clust@assays$peaks@ranges
-# grange de seurat_clust => 165 599 ranges ?
+```
 
-# https://www.biostars.org/p/473162/ 
 
+A RETRAVAILLER / COMPLETER 
+
+```{r, TEST - Find Differential Accessibility}
+
+# https://satijalab.org/seurat/reference/findmarkers
+
+# Extract cells from clust0 and clust1
+# clust0_cells = names(seurat_obj$peaks_snn_res.0.05[which(seurat_obj$peaks_snn_res.0.05 == 0)])
+# nbcells_clust0 = length(clust0_cells)
+# clust1_cells = names(seurat_obj$peaks_snn_res.0.05[which(seurat_obj$peaks_snn_res.0.05 == 1)])
+# nbcells_clust1 = length(clust1_cells)
+
+
+#######################################################################################################
+# Test sur le logfc.threshold  => on s'intéresse aux pvalue adjust
+#######################################################################################################
+
+# Travail avec object downsamplé sinon c'est trop long ! 
+# seurat_dwn = readRDS(file = paste0(dir_output, "20220302", "/seurat_obj_geneact_dim2-30.rds")) 
+# 
+# ###################
+# # test 0.25
+# ###################
+# 
+# # Compare clusters
+# test_0.25 <- FindMarkers(
+#   object = seurat_dwn,
+#   ident.1 = 0, # possibilité de passer le numéro du cluster ou un vecteur avec le nom des cellules
+#   ident.2 = 1, # possibilité de passer le numéro du cluster ou un vecteur avec le nom des cellules
+#   min.pct = 0.05,  # au minimum le peak doit être partagé par 5% de la population pour être pris en compte
+#   test.use = 'LR',
+#   latent.vars = 'peak_region_fragments',
+#   verbose = TRUE,
+#   logfc.threshold = 0.25 # on sélectionne seulement les peaks pour lesquels log2FC > 0.25 ou < - 0.25 ?
+# )
+
+# On regarde les pvalues 
+# pval_0.25 = test_0.25$p_val_adj
+# min(pval_0.25) # 5.271362e-08
+# max(pval_0.25) # 1
+# 
+# # Extract peaks with log2FC > 0.5 # attention, c'est possible que la pvalue soit pourrie ?
+# gene_open_0.25 = rownames(test_0.25[test_0.25$avg_log2FC > 0.5, ])
+# DA_openPeaks_0.25 <- test_0.25 %>% 
+#   tibble::rownames_to_column(var = "peak") %>%
+#   filter(peak %in% gene_open_0.25)
+# # 13 peaks = 10 avec une pvalue adjust ok et 3 avec une pvalue pourrie
+# 
+# # Extract peaks with log2FC < - 0.5
+# gene_close_0.25 = rownames(test_0.25[test_0.25$avg_log2FC < -0.5, ])
+# DA_closePeaks_0.25 = test_0.25 %>% 
+#   tibble::rownames_to_column(var = "peak") %>%
+#   filter(peak %in% gene_close_0.25)
+# # 28 peaks : 6 avec une pvalue pourrie 
+# 
+# plot_025 <- ggplot() +
+#   geom_point(
+#     data = test_0.25, 
+#     aes(x = avg_log2FC, y = -1 * log10(p_val_adj)), 
+#     size = 3, alpha = 0.5, shape = 21, stroke = 2) +
+#   geom_hline(aes(yintercept = 2), colour = "red", linetype = "dashed") +
+#   geom_text(label = "p-value = 0.01", colour = "red", aes(x = 0, y = 2.5)) +
+#   ylim(NA, 20) +
+#   labs(x = "log2(FoldChange)", y = "-log10(Pvalue_Adjust)") +
+#   theme(axis.line.y = element_line(color = "black"),
+#         axis.line.x = element_line(color = "black"),
+#         legend.text = element_text(size = 10),
+#         legend.title = element_text(size = 11),
+#         axis.title = element_text(size = 10))
+# plot_025
+# 
+# ###################
+# # test 0.1
+# ###################
+# 
+# test_0.1 <- FindMarkers(
+#   object = seurat_dwn,
+#   ident.1 = 0, # possibilité de passer le numéro du cluster ou un vecteur avec le nom des cellules
+#   ident.2 = 1, # possibilité de passer le numéro du cluster ou un vecteur avec le nom des cellules
+#   min.pct = 0.05,  # au minimum le peak doit être partagé par 5% de la population pour être pris en compte
+#   test.use = 'LR',
+#   latent.vars = 'peak_region_fragments',
+#   verbose = TRUE,
+#   logfc.threshold = 0.1
+# )
+# 
+# pval_0.1 = test_0.1$p_val_adj
+# min(pval_0.1) # 5.271362e-08
+# max(pval_0.1) # 1
+# 
+# # Extract peaks with log2FC > 0.5 # attention, c'est possible que la pvalue soit pourrie ?
+# gene_open_0.1 = rownames(test_0.1[test_0.1$avg_log2FC > 0.5, ])
+# DA_openPeaks_0.1 <- test_0.1 %>% 
+#   tibble::rownames_to_column(var = "peak") %>%
+#   filter(peak %in% gene_open_0.1)
+# # idem que pour 0.25
+# 
+# # Extract peaks with log2FC < - 0.5
+# gene_close_0.1 = rownames(test_0.1[test_0.1$avg_log2FC < -0.5, ])
+# DA_closePeaks_0.1 = test_0.1 %>% 
+#   tibble::rownames_to_column(var = "peak") %>%
+#   filter(peak %in% gene_close_0.1)
+# # idem que pour 0.25
+# 
+# plot_01 <- ggplot() +
+#   geom_point(
+#     data = test_0.1, 
+#     aes(x = avg_log2FC, y = -1 * log10(p_val_adj)), 
+#     size = 3, alpha = 0.5, shape = 21, stroke = 2) +
+#   geom_hline(aes(yintercept = 2), colour = "red", linetype = "dashed") +
+#   geom_text(label = "p-value = 0.01", colour = "red", aes(x = 0, y = 2.5)) +
+#   ylim(NA, 20) +
+#   labs(x = "log2(FoldChange)", y = "-log10(Pvalue_Adjust)") +
+#   theme(axis.line.y = element_line(color = "black"),
+#         axis.line.x = element_line(color = "black"),
+#         legend.text = element_text(size = 10),
+#         legend.title = element_text(size = 11),
+#         axis.title = element_text(size = 10))
+# plot_01
+
+###################
+# test 0
+###################
+
+# test_0 <- FindMarkers(
+#   object = seurat_dwn,
+#   ident.1 = 0, # possibilité de passer le numéro du cluster ou un vecteur avec le nom des cellules
+#   ident.2 = 1, # possibilité de passer le numéro du cluster ou un vecteur avec le nom des cellules
+#   min.pct = 0.05,  # au minimum le peak doit être partagé par 5% de la population pour être pris en compte
+#   test.use = 'LR',
+#   latent.vars = 'peak_region_fragments',
+#   verbose = TRUE,
+#   logfc.threshold = 0
+# )
+# 
+# pval_0 = test_0$p_val_adj
+# min(pval_0) # 5.271362e-08
+# max(pval_0)
+# 
+# # Extract peaks with log2FC > 0.5 # attention, c'est possible que la pvalue soit pourrie ?
+# gene_open_0 = rownames(test_0[test_0$avg_log2FC > 0.5, ])
+# DA_openPeaks_0 <- test_0 %>% 
+#   tibble::rownames_to_column(var = "peak") %>%
+#   filter(peak %in% gene_open_0)
+# # idem que 0.25 et 0.1
+# 
+# # Extract peaks with log2FC < - 0.5
+# gene_close_0 = rownames(test_0[test_0$avg_log2FC < -0.5, ])
+# DA_closePeaks_0 = test_0 %>% 
+#   tibble::rownames_to_column(var = "peak") %>%
+#   filter(peak %in% gene_close_0)
+# # idem que 0.25 et 0.1
+
+# plot <- ggplot() +
+#   geom_point(
+#     data = test_0, 
+#     aes(x = avg_log2FC, y = -1 * log10(p_val_adj)), 
+#     size = 3, alpha = 0.5, shape = 21, stroke = 2) +
+#   geom_hline(aes(yintercept = 2), colour = "red", linetype = "dashed") +
+#   geom_text(label = "p-value = 0.01", colour = "red", aes(x = 0, y = 2.5)) +
+#   ylim(NA, 20) +
+#   labs(x = "log2(FoldChange)", y = "-log10(Pvalue_Adjust)") +
+#   theme(axis.line.y = element_line(color = "black"),
+#         axis.line.x = element_line(color = "black"),
+#         legend.text = element_text(size = 10),
+#         legend.title = element_text(size = 11),
+#         axis.title = element_text(size = 10))
+# plot
+
+###################
+# Pour résumer : quand on joue sur le paramètre logfc.threshold, on augmente le nombre de données qu'on récupère dans le tableau de sortie
+# car il n'y a plus de filtre appliqué sur les résultats récupérés. Toutefois, on récupère toujours les mêmes peaks avec log2FC > 0.5 ou < 0.5 car cela ne change pas.
+###################
+  
+##########################################################################################################################
+# ident.1 : identity class to define markers for 
+# ident.2 : a second identity class for comparison
+# logfc.threshold : limit testing to genes which show, on average, at least X-fold difference (log-scale) between the two groups of cells. Default is 0.25 Increasing logfc.threshold speeds up the function, but can miss weaker signals.
+###############################################################################################
 
 
 ```
 
-```{r, Peaks distribution accross clusters in annotations}
-# pour chacun des deux clusters, faire la même distribution mais pour chaque élément/annotation génomique et faire les histogrammes comme pour le bulk
+```{r, Find Differential Accessibility}
+
+# 1min de process
+# da_peaks_0.25 <- FindMarkers(
+#   object = seurat_obj,
+#   ident.1 = 0, # possibilité de passer le numéro du cluster ou un vecteur avec le nom des cellules
+#   ident.2 = 1, # possibilité de passer le numéro du cluster ou un vecteur avec le nom des cellules
+#   min.pct = 0.05,  # au minimum le peak doit être partagé par 5% de la population pour être pris en compte
+#   test.use = 'LR',
+#   latent.vars = 'peak_region_fragments',
+#   verbose = TRUE,
+#   logfc.threshold = 0.25 # on sélectionne seulement les peaks pour lesquels log2FC > 0.25 ou < - 0.25
+# )
+
+# 2min15s de process => on commence à voir des FC positif mais ils étaient inférieurs à 0.25 c'est pour ça qu'on ne les voyait pas
+da_peaks_0.2 <- FindMarkers(
+  object = seurat_obj,
+  ident.1 = 0, # possibilité de passer le numéro du cluster ou un vecteur avec le nom des cellules
+  ident.2 = 1, # possibilité de passer le numéro du cluster ou un vecteur avec le nom des cellules
+  min.pct = 0.05,  # au minimum le peak doit être partagé par 5% de la population pour être pris en compte
+  test.use = 'LR',
+  latent.vars = 'peak_region_fragments',
+  verbose = TRUE,
+  logfc.threshold = 0.2 # on sélectionne seulement les peaks pour lesquels log2FC > 0.2 ou < - 0.2
+)
+
+# Extract peaks with log2FC > 0.5 # attention, c'est possible que la pvalue soit pourrie ?
+gene_open_0.2 = rownames(da_peaks_0.2[da_peaks_0.2$avg_log2FC > 0.5, ])
+DA_openPeaks_0.2 <- da_peaks_0.2 %>%
+  tibble::rownames_to_column(var = "peak") %>%
+  filter(peak %in% gene_open_0.2)
+# vide 
+
+# Extract peaks with log2FC < - 0.5
+gene_close_0.2 = rownames(da_peaks_0.2[da_peaks_0.2$avg_log2FC < -0.5, ])
+DA_closePeaks_0.2 = da_peaks_0.2 %>%
+  tibble::rownames_to_column(var = "peak") %>%
+  filter(peak %in% gene_close_0.2)
+# 479
+
+da_peaks_0.2_inverse <- FindMarkers(
+  object = seurat_obj,
+  ident.1 = 1, # possibilité de passer le numéro du cluster ou un vecteur avec le nom des cellules
+  ident.2 = 0, # possibilité de passer le numéro du cluster ou un vecteur avec le nom des cellules
+  min.pct = 0.05,  # au minimum le peak doit être partagé par 5% de la population pour être pris en compte
+  test.use = 'LR',
+  latent.vars = 'peak_region_fragments',
+  verbose = TRUE,
+  logfc.threshold = 0.2 # on sélectionne seulement les peaks pour lesquels log2FC > 0.2 ou < - 0.2
+)
+
+# Extract peaks with log2FC > 0.5 # attention, c'est possible que la pvalue soit pourrie ?
+gene_open_0.2_inverse = rownames(da_peaks_0.2_inverse[da_peaks_0.2_inverse$avg_log2FC > 0.5, ])
+DA_openPeaks_0.2_invers <- da_peaks_0.2_inverse %>%
+  tibble::rownames_to_column(var = "peak") %>%
+  filter(peak %in% gene_open_0.2_inverse)
+# 479 
+
+# Extract peaks with log2FC < - 0.5
+gene_close_0.2_inverse = rownames(da_peaks_0.2_inverse[da_peaks_0.2_inverse$avg_log2FC < -0.5, ])
+DA_closePeaks_0.2_inverse = da_peaks_0.2_inverse %>%
+  tibble::rownames_to_column(var = "peak") %>%
+  filter(peak %in% gene_close_0.2_inverse)
+# vide
+
+table(gene_open_0.2_inverse == gene_close_0.2)
+
+
+# quand on veut essayer logfc.threshold = 0 : 1h45m49s de process
+
+plot <- ggplot() +
+  geom_point(
+    data = test_0, 
+    aes(x = avg_log2FC, y = -1 * log10(p_val_adj)), 
+    size = 3, alpha = 0.5, shape = 21, stroke = 2) +
+  geom_hline(aes(yintercept = 2), colour = "red", linetype = "dashed") +
+  geom_text(label = "p-value = 0.01", colour = "red", aes(x = 0, y = 2.5)) +
+  ylim(NA, 20) +
+  labs(x = "log2(FoldChange)", y = "-log10(Pvalue_Adjust)") +
+  theme(axis.line.y = element_line(color = "black"),
+        axis.line.x = element_line(color = "black"),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 11),
+        axis.title = element_text(size = 10))
+plot
+
+# avg_logFC: Positive values indicate that the gene is more highly expressed in the first group
+# pct.1: The percentage of cells where the gene is detected in the first group
+# pct.2: The percentage of cells where the gene is detected in the second group
+# si foldchange > 0.5, alors cells de ident1 plus accessibles que celles de ident2
+# si foldchange < -0.5, alors cells de ident1 moins accessibles que celles de ident2
+
+```
+
+
+Autres résolutions => les clusters sont pas les mêmes, attention à ident1 et ident2
+```{r Identifying peaks with high fold change}
+
+# Place peaks on genome and determine the closest gene
+# on obtient un tableau => vérifier si on a l'info de la fiabilité de l'attribution des gènes dans les peaks
+DA_closePeaks_gene <- ClosestFeature(seurat_obj, regions = DA_closePeaks)
+head(DA_closePeaks_gene)
+
+
+```
+
+```{r Gene Ontology}
+
+# Sur les peaks qui sont plus fermés : 
+
+# Code issu de l'analyse MARS ATAC = ne pas modifier
+name_correspondace = bitr(DA_closePeaks_gene$gene_id, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = "org.Hs.eg.db")
+colnames(DA_closePeaks_gene)[3] = "ENSEMBL"
+# garder seulement les gènes dont on a trouvé la correspondance du nom dans la BDD
+DA_closePeaks_gene = inner_join(DA_closePeaks_gene, name_correspondace, by = "ENSEMBL")
+
+# ont = ALL => cellular components, cellular pathway...
+ego <- enrichGO(gene = DA_closePeaks_gene$ENTREZID,
+       OrgDb         = org.Hs.eg.db,
+       ont           = "ALL",
+       pAdjustMethod = "BH",
+       pvalueCutoff  = 0.05,
+       qvalueCutoff  = 0.2,
+       readable      = TRUE)
+
+dotplot(ego, showCategory = 20)
+
+
+# refaire la même chose (ego) avec les foldchange positifs => pour avoir l'info de l'autre cluster
 ```
 
 ```{r, Cluster gene specific }
+
+# tab_clust = tab_clust[rowSums(tab_clust[])>0, ] # on enlève les peaks qui ne sont pas du tout détectés dans aucune cellule (tous les peaks sont détectés)
 
 # sortir la liste de tous les gènes qui ont un peak dans le clust0, dans le clust1, enlever l'intersection et regarder ce qui n'est pas en commun :
   # - sous sampling que les peaks qui tombent dans TSS (refaire FindMarkers ?)
@@ -736,7 +1061,7 @@ table(grange_cds$type)
   # - GO sur les deux listes
 
 #################################
-# sur touts les peaks 
+# sur tous les peaks 
 #################################
 
 meta_col = paste0("peaks_snn_res.0.2")
@@ -781,94 +1106,36 @@ tab_top200 = head(tab_peak_clust0, 200)
 
 ```{r AddChromatinModule}
 
+# https://satijalab.org/signac/reference/addchromatinmodule
+
+# Extract gene list from CALISTA clusters 
+calista_d1 = read_csv2(file = paste0())
+calista_d2 = read_csv2(file = )
+
+
+
+
+
+
+# 
+AddChromatinModule(object = ,
+                   features = , 
+                   genome = , 
+                   assay = , 
+                   genome = ,
+                   verbose = TRUE)
+
 # Trouver des listes de gènes qui  nous intéressent, genre "souche, cellule T" ou bien même encore plus simplement les listes des gènes de chaque cluster de CALISTA (!)
 # Choper les peaks qui tombe dans les TSS de ces gènes là
 # Donner ces listes de gènes à la fonction AddChromatinModule
 # Espèrer que le gros cluster corresponde au cluster 2 de Calista et que le petit au cluster 3/4/5
 # Ou alors  espèrer que le gros cluster ait une signature plus "souche" que le cluster petit
-```
 
 
-=> faire un downsampling
 
-
-FONCTIONNEL MAIS A RETRAVAILLER / COMPLETER 
-
-```{r, Find Differential Accessibility}
-
-# Extract cells from clust0 and clust1
-# clust0_cells = names(seurat_obj$peaks_snn_res.0.05[which(seurat_obj$peaks_snn_res.0.05 == 0)])
-# nbcells_clust0 = length(clust0_cells)
-# clust1_cells = names(seurat_obj$peaks_snn_res.0.05[which(seurat_obj$peaks_snn_res.0.05 == 1)])
-# nbcells_clust1 = length(clust1_cells)
-
-# Compare clusters
-da_peaks <- FindMarkers(
-  object = seurat_obj,
-  ident.1 = 0,
-  ident.2 = 1,
-  min.pct = 0.05,  # au minimum le peak doit être partagé par 5% de la pop
-  test.use = 'LR',
-  latent.vars = 'peak_region_fragments',
-  verbose = TRUE
-)
-# ident.1 : identity class to define markers for 
-# ident.2 : a second identity class for comparison
-# avg_logFC: Positive values indicate that the gene is more highly expressed in the first group
-# si foldchange > 0.5, alors cells de ident1 plus accessibles que celles de ident2
-# si foldchange < -0.5, alors cells de ident1 moins accessibles que celles de ident2
-# pct.1: The percentage of cells where the gene is detected in the first group
-# pct.2: The percentage of cells where the gene is detected in the second group
-head(da_peaks)
-
-# Extract peaks with log2FC > 0.5
-DA_openPeaks <- rownames(da_peaks[da_peaks$avg_log2FC > 0.5, ])
-# Extract peaks with log2FC < - 0.5
-DA_closePeaks <- rownames(da_peaks[da_peaks$avg_log2FC < -0.5, ])
-
-# pb : que des fold-change négatif : que des peaks qui se ferment dans le petit groupes ??? erreur ou pas DA_1 = empty
-# les deux sont empty quand on choisit une résolution de 0.1 et 0.2
-```
-
-à vérifier : est-ce que les foldchange conservés sont seulement ceux qui ont une p-value importante (statistiquement important) ? Voir les paramètres de base de la fonction. car dans la vignette pas de threshold appliqué. 
-Autres résolutions => les clusters sont pas les mêmes, attention à ident1 et ident2
-
-```{r Identifying peaks with high fold change}
-
-# Place peaks on genome and determine the closest gene
-# on obtient un tableau => vérifier si on a l'info de la fiabilité de l'attribution des gènes dans les peaks
-DA_closePeaks_gene <- ClosestFeature(seurat_obj, regions = DA_closePeaks)
-head(DA_closePeaks_gene)
-
-# DA_openPeaks_gene <- ClosestFeature(seurat_obj, regions = DA_openPeaks)
-# head(DA_openPeaks_gene)
 
 ```
 
-```{r Gene Ontology}
-
-# Sur les peaks qui sont plus fermés : 
-
-# Code issu de l'analyse MARS ATAC = ne pas modifier
-name_correspondace = bitr(DA_closePeaks_gene$gene_id, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = "org.Hs.eg.db")
-colnames(DA_closePeaks_gene)[3] = "ENSEMBL"
-# garder seulement les gènes dont on a trouvé la correspondance du nom dans la BDD
-DA_closePeaks_gene = inner_join(DA_closePeaks_gene, name_correspondace, by = "ENSEMBL")
-
-# ont = ALL => cellular components, cellular pathway...
-ego <- enrichGO(gene = DA_closePeaks_gene$ENTREZID,
-       OrgDb         = org.Hs.eg.db,
-       ont           = "ALL",
-       pAdjustMethod = "BH",
-       pvalueCutoff  = 0.05,
-       qvalueCutoff  = 0.2,
-       readable      = TRUE)
-
-dotplot(ego, showCategory = 20)
-
-
-# refaire la même chose (ego) avec les foldchange positifs => pour avoir l'info de l'autre cluster
-```
 
 
 
