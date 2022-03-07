@@ -749,7 +749,7 @@ rm(tab_all, tab_clust0, tab_clust1, tab_compare)
 
 ```
 
-```{r, Sharing peaks in cell across clusters, results = 'hold', fig.width=20, fig.height=20}
+```{r, Sharing peaks in cell across clusters, results = 'hold', fig.width=6, fig.height=16}
 
 tab_districell_clust = data.frame()
 
@@ -821,7 +821,7 @@ legend.grid = c("0" = "cluster 0", "1" = "cluster 1", "2" = "cluster 2", "3" = "
 plot_districell_grid = ggplot(tab_plot, aes(x=propcells_sharing_peak, fill=clust)) +
   geom_histogram(binwidth = 10, color = "black", alpha = 0.5, position = "identity") +
   geom_vline(aes(xintercept = median_propcells_sharing_peak, col=clust), linetype = "dashed", size = 1) +
-  ggtitle(label = paste0("(with median) - ", res, " !!! Different scales !!!")) +
+  ggtitle(label = paste0("Dashed line correspond to median - ", res, " !!! Different scales !!!")) +
   ylab(label = "NUMBER OF PEAKS CONCERNED") +
   xlab("PROPORTION OF CELLS SHARING A PEAK IN THE CLUSTER") +
   facet_grid(peaks_category ~ clust, labeller = labeller(clust = legend.grid), scales = "free") +
@@ -831,7 +831,7 @@ plot_districell_grid
 plot_districell = ggplot(tab_plot, aes(x=propcells_sharing_peak, fill=clust)) +
   geom_histogram(binwidth = 10, aes(color = clust), alpha = 0.2, position = "identity") +
   geom_vline(aes(xintercept = median_propcells_sharing_peak, col=clust), linetype = "dashed", size = 1) +
-  ggtitle(label = paste0("(with median) - ", res, " !!! Different scales !!!")) +
+  ggtitle(label = paste0("Dashed line correspond to median - ", res, " !!! Different scales !!!")) +
   ylab(label = "NUMBER OF PEAKS CONCERNED") +
   xlab("PROPORTION OF CELLS SHARING A PEAK IN THE CLUSTER") +
   facet_grid(peaks_category~., scales = "free") +
@@ -841,7 +841,7 @@ plot_districell
 plot_districell_density = ggplot(tab_plot, aes(x=propcells_sharing_peak, fill=clust)) +
   geom_density(aes(col=clust), alpha = 0.3) +
   geom_vline(aes(xintercept = median_propcells_sharing_peak, col=clust), linetype = "dashed", size = 1) +
-  ggtitle(label = paste0("(with median) - ", res, " !!! Different scales !!!")) +
+  ggtitle(label = paste0("Dashed line correspond to median - ", res, " !!! Different scales !!!")) +
   ylab(label = "PROPOTION OF PEAKS CONCERNED") +
   xlab("PROPORTION OF CELLS SHARING A PEAK IN THE CLUSTER") +
   facet_grid(peaks_category~., scales = "free") +
@@ -849,12 +849,19 @@ plot_districell_density = ggplot(tab_plot, aes(x=propcells_sharing_peak, fill=cl
 plot_districell_density
 
 # Save object and clean working space 
-# ggsave(plot = plot_districell,
-#        filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_distri_cell_annot_clust.png"),
-#        width = 16, height = 10)
+ggsave(plot = plot_districell,
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_distri_cell_annot_clust.png"),
+       width = 6, height = 14)
+ggsave(plot = plot_districell_grid,
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_distrigrid_cell_annot_clust.png"),
+       width = 16, height = 16)
+ggsave(plot = plot_districell_density,
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_distridensity_cell_annot_clust.png"),
+       width = 6, height = 14)
 write_csv2(tab_districell_clust, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_districell.csv"))
 write_csv2(tab_districell_stat, file = paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_districell_stat.csv"))
-rm(plot_districell, tab_plot, tab_districell_stat, tab_districell_clust, temp_districell_clust, peaks_name_list, clust, tab_clust, seurat_clust, i)
+rm(tab_plot, tab_districell_stat, tab_districell_clust, temp_districell_clust, peaks_name_list, clust, tab_clust, seurat_clust, i)
+rm(plot_districell_density, plot_districell_grid, plot_districell, legend.grid)
 
 ```
 
@@ -881,7 +888,7 @@ clust1_gene_list = as.vector(clust1_gene$gene_name)
 # pb : tous les gènes sont représentés dans les deux clusters, il faut s'intéresser aux proportions d'accessibilité
 table(clust0_gene_list == clust1_gene_list)
 
-
+rm(seurat_clust0, clust0gene, clust0_gene_list, seurat_clust1, clust1_gene, clust1_gene_list, clust)
 ```
 
 ```{r, Isolate cluster specific top 200 peaks}
@@ -955,60 +962,81 @@ rm(ego_clust0, ego_clust1, gene_clust0, gene_clust1, name_correspondance)
 A RETRAVAILLER / COMPLETER 
 
 
-
 ```{r AddChromatinModule}
 
 # https://satijalab.org/signac/reference/addchromatinmodule
+# https://github.com/timoast/signac/issues/185
 
 #######################################################
 #### Extraire la liste du top 200 gènes de CALISTA ####
 #######################################################
 
-# Trouver des listes de gènes qui  nous intéressent, genre "souche, cellule T" ou bien même encore plus simplement les listes des gènes de chaque cluster de CALISTA (!)
 # Extract gene list from CALISTA clusters  # on extrait la liste des 200 gènes les plus varaibles utilisés pour créer les clusters CALISTA
-library(stringr)
-calista_d1 = read_delim(file = paste0(dir_git, "data/Calista_results_d1.csv"), delim = "\t") %>% dplyr::select(-CELL_ID, - time, -cluster_num)
-calista_top200_d1 = colnames(calista_d1)
-calista_top200_d1 = str_replace_all(calista_top200_d1, pattern = "'''", replacement = "")
-calista_top200_d1 = str_replace_all(calista_top200_d1, pattern = "; chr[:alnum:]+", replacement = "")
-# test = noquote(test)
+# library(stringr)
+# calista_d1 = read_delim(file = paste0(dir_git, "data/Calista_results_d1.csv"), delim = "\t") %>% dplyr::select(-CELL_ID, - time, -cluster_num)
+# calista_top200_d1 = colnames(calista_d1)
+# calista_top200_d1 = str_replace_all(calista_top200_d1, pattern = "'''", replacement = "")
+# calista_top200_d1 = str_replace_all(calista_top200_d1, pattern = "; chr[:alnum:]+", replacement = "")
+# # test = noquote(test)
+# 
+# calista_d2 = read_delim(file = paste0(dir_git, "data/Calista_results_d2.csv"), delim = "\t") %>% dplyr::select(-CELL_ID, - time, -cluster_num)
+# calista_top200_d2 = colnames(calista_d2)
+# calista_top200_d2 = str_replace_all(calista_top200_d2, pattern = "'''", replacement = "")
+# calista_top200_d2 = str_replace_all(calista_top200_d2, pattern = "; chr[:alnum:]+", replacement = "")
+# 
+# # Les gènes qui permettent de faire les clusters de d1 dans calista sont totalement différent de ceux qui permettent de faire les cluster dans d2
+# table(calista_top200_d1 == calista_top200_d2) # ?
 
-calista_d2 = read_delim(file = paste0(dir_git, "data/Calista_results_d2.csv"), delim = "\t") %>% dplyr::select(-CELL_ID, - time, -cluster_num)
-calista_top200_d2 = colnames(calista_d2)
-calista_top200_d2 = str_replace_all(calista_top200_d2, pattern = "'''", replacement = "")
-calista_top200_d2 = str_replace_all(calista_top200_d2, pattern = "; chr[:alnum:]+", replacement = "")
+# rm(calista_d1, calista_top200_d1, calista_d2, calista_top200_d2)
 
-# Les gènes qui permettent de faire les clusters de d1 dans calista sont totalement différent de ceux qui permettent de faire les cluster dans d2
-table(calista_top200_d1 == calista_top200_d2) # ?
+###############################################################
+#### Pour chaque cluster de CALISTA, extraire la liste de gènes
+###############################################################
+
+# # Trouver des listes de gènes qui  nous intéressent, genre "souche, cellule T" ou bien même encore plus simplement les listes des gènes de chaque cluster de CALISTA (!)
+calista_clust1 = read.table(file = paste0(dir_git, "data/list_gene_cluster1_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
+calista_clust1 = as.vector(calista_clust1$x)
+calista_clust2 = read.table(file = paste0(dir_git, "data/list_gene_cluster2_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
+calista_clust2 = as.vector(calista_clust2$x)
+calista_clust3 = read.table(file = paste0(dir_git, "data/list_gene_cluster3_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
+calista_clust3 = as.vector(calista_clust3$x)
+calista_clust4 = read.table(file = paste0(dir_git, "data/list_gene_cluster4_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
+calista_clust4 = as.vector(calista_clust4$x)
+calista_clust5 = read.table(file = paste0(dir_git, "data/list_gene_cluster5_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
+calista_clust5 = as.vector(calista_clust5$x)
+
+###############################################################
+#### Charger le dataframe faisant le lien entre les promoteurs de FANTOM5 et les gènes
+###############################################################
+# Choper le dataframe de FANTOM qui relie les promoteurs aux gènes qu'ils régulent (rangé qqpart dans MARS-ATAC je pense)
+# Faire un GRange de ces promoteurs
+# Faire une intersection avec les peaks de scATAC (sur la totalité du tableau, pas seulement clust 0/1)
+# Récupérer les peaks de scATAC qui intersecte avec ces promoteurs
+
+# on a extrait la liste des gènes correspondant aux peaks promoteurs dans toutes les cellules scATAC
+grange = seurat_obj@assays$peaks@ranges
+grange_prom = grange[grange$FANTOM5_promoter == TRUE]
+list_peaks_prom = grange_prom$peaks_name
+gene_grange_prom = ClosestFeature(seurat_obj, regions = list_peaks_prom)
+gene_grange_prom_list = gene_grange_prom$gene_name
 
 
-#######################################################
-#### 
-#######################################################
+###############################################################
+#### Donner ces listes de gènes à la fonction AddChromatinModule
+###############################################################
 
-# Choper les peaks qui tombe dans les promoteurs de ces gènes là
-
-
-# Donner ces listes de gènes à la fonction AddChromatinModule
+# Il faut lui donner une liste de peak !! pas une liste de gène enfin j'ai l'impression
 AddChromatinModule(object = seurat_obj,
-                   features = calista_top200_d1, 
+                   features = list("module1" = calista_clust1, "module2" = gene_grange_prom_list), 
                    verbose = TRUE)
 # Espèrer que le gros cluster corresponde au cluster 2 de Calista et que le petit au cluster 3/4/5
 # Ou alors  espèrer que le gros cluster ait une signature plus "souche" que le cluster petit
 
-# Choper le dataframe de FANTOM qui relie les promoteurs aux gènes qu'ils régulent (rangé qqpart dans MARS-ATAC je pense)
-#         => Là je pense que le mieux c'est de procéder liste de gènes par liste de gène (Calista) et de continuer le reste des étapes pour chaque liste séparément
-# Faire un GRange de ces promoteurs
-# Faire une intersection avec les peaks de scATAC (sur la totalité du tableau, pas seulement clust 0/1)
-# Récupérer les peaks de scATAC qui intersecte avec ces promoteurs
-# Donner cette liste (features) à AddModule
 
-
-
-
+rm(calista_clust1, calista_clust2, calista_clust3, calista_clust4, calista_clust5)
+rm(gene_grange_prom, gene_grange_prom_list, list_peaks_prom)
 
 ```
-
 
 
 Laisser tomber la differential analysis ?
