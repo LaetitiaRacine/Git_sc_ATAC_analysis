@@ -627,8 +627,10 @@ tab_distripeaks_stat = tab_distripeaks_clust %>%
                 max_nbpeaks_percell = max(total_nbpeaks_percell),
                 min_nbpeaks_percell = min(total_nbpeaks_percell),
                 var_nbpeaks_percell = round(sd(total_nbpeaks_percell))) %>%
+  dplyr::mutate(percent_cell_clust = round((nbcells_clust/ncol(seurat_obj))*100)) %>%
   dplyr::ungroup() %>%
-  dplyr::select(peaks_category, clust, nbcells_clust, median_nbpeaks_percell, mean_nbpeaks_percell, max_nbpeaks_percell, min_nbpeaks_percell, var_nbpeaks_percell) %>%
+  dplyr::select(peaks_category, clust, nbcells_clust, percent_cell_clust, median_nbpeaks_percell, 
+                mean_nbpeaks_percell, max_nbpeaks_percell, min_nbpeaks_percell, var_nbpeaks_percell) %>%
   dplyr::distinct()
 
 # Save dataframes and clean working space
