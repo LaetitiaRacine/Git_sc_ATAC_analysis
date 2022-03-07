@@ -10,11 +10,18 @@ output: html_document
 library(Signac)
 library(Seurat)
 library(GenomeInfoDb)
-library(EnsDb.Hsapiens.v86)# v.86= hg38 | v.75=hg19
+library(EnsDb.Hsapiens.v86) # v.86= hg38 | v.75=hg19
 library(ggplot2)
 library(patchwork)
 library(readr)
 library(dplyr)
+
+```
+
+```{r Directories}
+
+dir_input = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/data/sc_ATAC_raw_data/ATAC_Ctrl_MP/"
+dir_output = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/exp/"
 
 ```
 
@@ -33,18 +40,18 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
   
   if(file_type == "rda"){
     
-    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+    if(dir.exists(paste0(dir_output, folder, "/", syst_time))){
       
       save(
         object, 
-        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".rda"))
+        file = paste0(dir_output, folder, "/", syst_time, "/", deparse(substitute(object)),".rda"))
     }
     
     else{ 
       
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      new_dir = paste0(dir_output, folder)
       dir.create(new_dir)
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      new_dir = paste0(dir_output, folder, "/", syst_time)
       dir.create(new_dir)
       save(object, file = paste0(new_dir, "/" , deparse(substitute(object)), ".rda"))
       
@@ -53,18 +60,18 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
   
   if(file_type == "csv"){
     
-    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+    if(dir.exists(paste0(dir_output, folder, "/", syst_time))){
       
       write_csv2(
         x = object, 
-        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".csv"))
+        file = paste0(dir_output, folder, "/", syst_time, "/", deparse(substitute(object)),".csv"))
     }
     
     else{ 
       
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      new_dir = paste0(dir_output, folder)
       dir.create(new_dir)
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      new_dir = paste0(dir_output, folder, "/", syst_time)
       dir.create(new_dir)
       write_csv2(
         x = object, 
@@ -75,11 +82,11 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
   
   if(file_type == "plot"){
     
-    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+    if(dir.exists(paste0(dir_output, folder, "/", syst_time))){
       
       ggsave(
         object,
-        filename = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".svg"),
+        filename = paste0(dir_output, folder, "/", syst_time, "/", deparse(substitute(object)),".svg"),
         width = width,
         height = height,
         units = "mm")
@@ -87,7 +94,7 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
     
     else{
       
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      new_dir = paste0(dir_output, folder)
       dir.create(new_dir)
       
       ggsave(
@@ -120,7 +127,7 @@ last_file_generated = function(parent_folder, pattern){
 
 # scATAC countmatrix path
 sc_count_matrix = last_file_generated(
-    parent_folder = "~/Bureau/sc_ATAC_analysis/exp/hg19_cells_peaks_matrix",
+    parent_folder = paste0(dir_output, "hg19_cells_peaks_matrix"),
     pattern = "df_hg19")
 
 sc_count_matrix = loadRData(sc_count_matrix)
@@ -148,7 +155,7 @@ DimPlot(object = seurat_sc_all, label = TRUE) + NoLegend()
 
 # Promoter peaks path
 sc_prom_peaks = last_file_generated(
-  parent_folder = "~/Bureau/sc_ATAC_analysis/exp/sc_vs_bulk_overlap/",
+  parent_folder = paste0(dir_output, "sc_vs_bulk_overlap/"),
   pattern = "prom_peaks.csv" )
 
 # Load Promoter peaks path
@@ -156,7 +163,7 @@ sc_prom_peaks = read_csv2(sc_prom_peaks)
 
 # scATAC countmatrix path
 sc_count_matrix = last_file_generated(
-    parent_folder = "~/Bureau/sc_ATAC_analysis/exp/hg19_cells_peaks_matrix",
+    parent_folder = paste0(dir_output, "hg19_cells_peaks_matrix"),
     pattern = "df_hg19")
 
 sc_count_matrix = loadRData(sc_count_matrix)
@@ -187,7 +194,7 @@ DimPlot(object = seurat_sc_prom, label = TRUE) + NoLegend()
 
 # Promoter peaks path
 sc_prom_peaks = last_file_generated(
-  parent_folder = "~/Bureau/sc_ATAC_analysis/exp/sc_vs_bulk_overlap/",
+  parent_folder = paste0(dir_output, "sc_vs_bulk_overlap/"),
   pattern = "prom_peaks.csv" )
 
 # Load Promoter peaks path
@@ -196,7 +203,7 @@ sc_prom_peaks = sc_prom_peaks %>% filter(overlap_bulk_at_24h == TRUE)
 
 # scATAC countmatrix path
 sc_count_matrix = last_file_generated(
-    parent_folder = "~/Bureau/sc_ATAC_analysis/exp/hg19_cells_peaks_matrix",
+    parent_folder = paste0(dir_output, "hg19_cells_peaks_matrix"),
     pattern = "df_hg19")
 
 sc_count_matrix = loadRData(sc_count_matrix)
@@ -227,7 +234,7 @@ DimPlot(object = seurat_sc_prom, label = TRUE) + NoLegend()
 
 # intergenic peaks path
 sc_intergenic_peaks = last_file_generated(
-  parent_folder = "~/Bureau/sc_ATAC_analysis/exp/sc_vs_bulk_overlap/",
+  parent_folder = paste0(dir_output, "sc_vs_bulk_overlap/"),
   pattern = "intergenic_peaks.csv" )
 
 # Load intergenic peaks path
@@ -235,7 +242,7 @@ sc_intergenic_peaks = read_csv2(sc_intergenic_peaks)
 
 # scATAC countmatrix path
 sc_count_matrix = last_file_generated(
-    parent_folder = "~/Bureau/sc_ATAC_analysis/exp/hg19_cells_peaks_matrix",
+    parent_folder = paste0(dir_output, "hg19_cells_peaks_matrix"),
     pattern = "df_hg19")
 
 sc_count_matrix = loadRData(sc_count_matrix)
@@ -264,14 +271,14 @@ DimPlot(object = seurat_sc_intergenic, label = TRUE) + NoLegend()
 
 ```{r}
 
-counts <- Seurat::Read10X_h5(filename = "~/Bureau/Bordel_sc_ATAC/scATAC_raw_data/ATAC_Ctrl_MP/filtered_peak_bc_matrix.h5")
+counts <- Seurat::Read10X_h5(filename = paste0(dir_input, "filtered_peak_bc_matrix.h5"))
 
 
 chrom_assay <- CreateChromatinAssay(
   counts = counts,
   sep = c(":", "-"),
   genome = 'hg38',
-  fragments = '~/Bureau/Bordel_sc_ATAC/scATAC_raw_data/ATAC_Ctrl_MP/fragments.tsv.gz',
+  fragments = paste0(dir_input, 'fragments.tsv.gz'),
   min.cells = 100,
   min.features = 200
 )

@@ -12,11 +12,15 @@ require(ggplot2)
 
 ```
 
+```{r Directories}
+
+dir_output = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/exp/"
+
+```
 
 ```{r Function definition}
 
 ### Function to load files with desired name
-
 loadRData<-function(fileName){
   #loads an RData file, and returns it
   load(fileName)
@@ -31,18 +35,18 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
   
   if(file_type == "rda"){
     
-    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+    if(dir.exists(paste0(dir_output, folder, "/", syst_time))){
       
       save(
         object, 
-        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".rda"))
+        file = paste0(dir_output, folder, "/", syst_time, "/", deparse(substitute(object)),".rda"))
     }
     
     else{ 
       
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      new_dir = paste0(dir_output, folder)
       dir.create(new_dir)
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      new_dir = paste0(dir_output, folder, "/", syst_time)
       dir.create(new_dir)
       save(object, file = paste0(new_dir, "/" , deparse(substitute(object)), ".rda"))
       
@@ -51,18 +55,18 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
   
   if(file_type == "csv"){
     
-    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+    if(dir.exists(paste0(dir_output, folder, "/", syst_time))){
       
       write_csv2(
         x = object, 
-        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".csv"))
+        file = paste0(dir_output, folder, "/", syst_time, "/", deparse(substitute(object)),".csv"))
     }
     
     else{ 
       
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      new_dir = paste0(dir_output, folder)
       dir.create(new_dir)
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      new_dir = paste0(dir_output, folder, "/", syst_time)
       dir.create(new_dir)
       write_csv2(
         x = object, 
@@ -73,11 +77,11 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
   
   if(file_type == "plot"){
     
-    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+    if(dir.exists(paste0(dir_output, folder, "/", syst_time))){
       
       ggsave(
         object,
-        filename = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".svg"),
+        filename = paste0(dir_output, folder, "/", syst_time, "/", deparse(substitute(object)),".svg"),
         width = width,
         height = height,
         units = "mm")
@@ -85,7 +89,7 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
     
     else{
       
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      new_dir = paste0(dir_output, folder)
       dir.create(new_dir)
       
       ggsave(
@@ -98,7 +102,6 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
     }
   }
 }
-
 
 last_file_generated = function(parent_folder, pattern){
   
@@ -115,12 +118,11 @@ last_file_generated = function(parent_folder, pattern){
 
 ```
 
-
 ```{r }
 
 # Get the last hg19_mtx generated
 hg19_mtx = last_file_generated(
-  parent_folder = "~/Bureau/sc_ATAC_analysis/exp/hg19_cells_peaks_matrix",
+  parent_folder = paste0(dir_output, "hg19_cells_peaks_matrix"),
   pattern = "mtx_df_hg19")
 
 #Load it into a new object

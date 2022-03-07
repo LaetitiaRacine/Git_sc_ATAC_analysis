@@ -18,6 +18,14 @@ library(svglite)
 
 ```
 
+```{r Directories}
+
+dir_input_bulk = "~/MARS-ATAC/exp/"
+dir_input = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/data/"
+dir_output = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/exp/"
+
+```
+
 ```{r Function definition}
 
 loadRData<-function(fileName){
@@ -33,18 +41,18 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
   
   if(file_type == "rda"){
     
-    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+    if(dir.exists(paste0(dir_output, folder, "/", syst_time))){
       
       save(
         object, 
-        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".rda"))
+        file = paste0(dir_output, folder, "/", syst_time, "/", deparse(substitute(object)),".rda"))
     }
     
     else{ 
       
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      new_dir = paste0(dir_output, folder)
       dir.create(new_dir)
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      new_dir = paste0(dir_output, folder, "/", syst_time)
       dir.create(new_dir)
       save(object, file = paste0(new_dir, "/" , deparse(substitute(object)), ".rda"))
       
@@ -53,18 +61,18 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
   
   if(file_type == "csv"){
     
-    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+    if(dir.exists(paste0(dir_output, folder, "/", syst_time))){
       
       write_csv2(
         x = object, 
-        file = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".csv"))
+        file = paste0(dir_output, folder, "/", syst_time, "/", deparse(substitute(object)),".csv"))
     }
     
     else{ 
       
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      new_dir = paste0(dir_output, folder)
       dir.create(new_dir)
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time)
+      new_dir = paste0(dir_output, folder, "/", syst_time)
       dir.create(new_dir)
       write_csv2(
         x = object, 
@@ -75,11 +83,11 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
   
   if(file_type == "plot"){
     
-    if(dir.exists(paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time))){
+    if(dir.exists(paste0(dir_output, folder, "/", syst_time))){
       
       ggsave(
         object,
-        filename = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder, "/", syst_time, "/", deparse(substitute(object)),".svg"),
+        filename = paste0(dir_output, folder, "/", syst_time, "/", deparse(substitute(object)),".svg"),
         width = width,
         height = height,
         units = "mm")
@@ -87,7 +95,7 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
     
     else{
       
-      new_dir = paste0("~/Bureau/sc_ATAC_analysis/exp/", folder)
+      new_dir = paste0(dir_output, folder)
       dir.create(new_dir)
       
       ggsave(
@@ -107,7 +115,7 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
 
 # General list (union) of peaks obtained in bulk ATAC
 bulk_peaks_24h <- read_delim(
-  "~/MARS-ATAC/exp/ATAC_peak_annotation/2021_01_01/peaks_intersection_24h_MP_ann.csv",
+  paste0(dir_input_bulk, "ATAC_peak_annotation/2021_01_01/peaks_intersection_24h_MP_ann.csv"),
   delim = ";", escape_double = FALSE, trim_ws = TRUE, show_col_types = FALSE)
 
 # Transform it into a Grange
@@ -120,7 +128,7 @@ bulk_peaks_24h_gr = GRanges(
 mcols(bulk_peaks_24h_gr)= bulk_peaks_24h[7:ncol(bulk_peaks_24h)]
 
 # Load readcount for bulk 24h
-readcount_bulk_24 = read.csv2("~/MARS-ATAC/exp/ATAC_peak_readcount/2021_01_01/GSE156733_readCount_24h_Xvivo.txt")
+readcount_bulk_24 = read.csv2(paste0(dir_input_bulk, "ATAC_peak_readcount/2021_01_01/GSE156733_readCount_24h_Xvivo.txt"))
 readcount_bulk_24 = pivot_longer(data = readcount_bulk_24,cols = c(2:4), names_to = "Sample")
 mean_readcount = readcount_bulk_24 %>% group_by(X) %>% summarise(mean = mean(value))
 
@@ -138,7 +146,7 @@ bulk_peaks_24h_gr = GRanges(
 
 ```{r Preparing single cell data}
 
-sc_sharing_stat_overlapped = read_delim("~/Bureau/sc_ATAC_analysis/exp/sc_vs_bulk_overlap/2022_01_20_16h/sc_sharing_stat_overlapped.csv")
+sc_sharing_stat_overlapped = read_delim(paste0(dir_output, "sc_vs_bulk_overlap/2022_01_20_16h/sc_sharing_stat_overlapped.csv"))
 
 sc_peak_24h_gr = GRanges(
   seqnames = sc_sharing_stat_overlapped$seqnames,

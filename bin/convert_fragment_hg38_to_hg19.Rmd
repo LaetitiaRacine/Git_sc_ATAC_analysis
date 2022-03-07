@@ -5,13 +5,14 @@ date: "26/01/2022"
 output: html_document
 ---
 
-```{r}
+```{r Libraries}
 
 require(liftOver)
 require(rtracklayer)
 require(gwascat)
 require(dplyr)
 
+dir_input = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/data/scATAC_raw_data/ATAC_Ctrl_MP/"
 ```
 
 ```{r}
@@ -21,9 +22,10 @@ ch = import.chain(path)
 ch
 
 ```
+
 ```{r}
 
-data<-as.data.frame(fread("~/Bureau/Bordel_sc_ATAC/scATAC_raw_data/ATAC_Ctrl_MP/data.tsv"))
+data <- as.data.frame(fread(paste0(dir_input, "data.tsv")))
 colnames(data) = c("seqnames","start","end","Cell_bc","nb_reads")
 
 fragment_gr = GRanges(
