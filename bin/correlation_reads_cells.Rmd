@@ -20,7 +20,7 @@ library(svglite)
 
 ```{r Directories}
 
-dir_input_bulk = "~/MARS-ATAC/exp/"
+dir_input_bulk = "/media/rparmentier/Elements/DATA_MARS-ATAC/ATACseq/"
 dir_input = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/data/"
 dir_output = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/exp/"
 
@@ -115,7 +115,7 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
 
 # General list (union) of peaks obtained in bulk ATAC
 bulk_peaks_24h <- read_delim(
-  paste0(dir_input_bulk, "ATAC_peak_annotation/2021_01_01/peaks_intersection_24h_MP_ann.csv"),
+  paste0(dir_input_bulk, "peaks_intersection_24h_MP_ann.csv"),
   delim = ";", escape_double = FALSE, trim_ws = TRUE, show_col_types = FALSE)
 
 # Transform it into a Grange
@@ -128,7 +128,7 @@ bulk_peaks_24h_gr = GRanges(
 mcols(bulk_peaks_24h_gr)= bulk_peaks_24h[7:ncol(bulk_peaks_24h)]
 
 # Load readcount for bulk 24h
-readcount_bulk_24 = read.csv2(paste0(dir_input_bulk, "ATAC_peak_readcount/2021_01_01/GSE156733_readCount_24h_Xvivo.txt"))
+readcount_bulk_24 = read.csv2(paste0(dir_input_bulk, "readCount_24h_Xvivo.txt"))
 readcount_bulk_24 = pivot_longer(data = readcount_bulk_24,cols = c(2:4), names_to = "Sample")
 mean_readcount = readcount_bulk_24 %>% group_by(X) %>% summarise(mean = mean(value))
 
@@ -180,6 +180,7 @@ corr_readcount_cells_df = corr_readcount_cells_df %>%
 plot_hist_readcount_bulk = ggplot(data = corr_readcount_cells_df, aes(x = bulk_readcount)) +
   geom_histogram(bins = 50) +
   ggtitle(label = "Mean readcout for bulk ATACseq peaks at 24h")
+plot_hist_readcount_bulk
 
 save_exp_files(object = plot_hist_readcount_bulk, folder = "correlation_reads_cells", file_type = "plot",width = 200, height = 200 )
 
@@ -189,8 +190,16 @@ plot_corr_reads_cells = ggplot(
   data = corr_readcount_cells_df,
   aes(x = sc_nb_sharing_cells , y = bulk_readcount)) +
   geom_point()
+plot_corr_reads_cells
 
-save_exp_files(object = plot_corr_reads_cells, folder = "correlation_reads_cells", file_type = "plot", width = 200, height = 200 )
+plot_corr_reads_cells_log = ggplot(
+  data = corr_readcount_cells_df,
+  aes(x = log10(sc_nb_sharing_cells) , y = log10(bulk_readcount))) +
+  geom_point() 
+plot_corr_reads_cells_log
+
+save_exp_files(object = plot_corr_reads_cells, folder = "correlation_reads_cells", file_type = "plot", width = 200, height = 200)
+save_exp_files(object = plot_corr_reads_cells_log, folder = "correlation_reads_cells", file_type = "plot", width = 200, height = 200)
 
 ```
 

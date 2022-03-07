@@ -170,7 +170,7 @@ rm(standard_chr)
 
 all_annotations = loadRData(paste0(dir_input_sc, "Annotation_TSS_pm1kb_int_ex_53utr_ctcf_cpg_woThisto_FANTOM5_prom_gr.rda"))
 
-annotations_types = levels(factor(all_annotations$annotation))^
+annotations_types = levels(factor(all_annotations$annotation))
 
 # First a matrix is created filled with FALSE and added to the Grange
   metadata = matrix(FALSE, ncol = length(annotations_types), nrow = length(sc_peak_24h_gr))
@@ -225,11 +225,11 @@ bulk_overlapped_peaks = distinct(bulk_overlapped_peaks)
 ```{r Overlap statistics between bulk and sc - all peaks, message=F}
 
 # Get path for the last sc_sharing_stats.csv generated
-sc_sharing_stats = last_file_generated(parent_folder = paste0(dir_output, "cells_peaks_statistics/"), pattern = ".csv" )
+sc_sharing_stats = last_file_generated(parent_folder = paste0(dir_output, "cells_peaks_statistics/"), pattern = ".csv")
 
 # Load single-cell sharing statistics data.frame
 sc_sharing_stats = read.delim(sc_sharing_stats, sep = ";")
-# sc_sharing_stats = loadRData(paste0(dir_output, "cells_peaks_statistics/2022_01_19_12h_33min/sc_sharing_stats_df.rda")
+# sc_sharing_stats = read.csv2(paste0(dir_output, "cells_peaks_statistics/2022_03_04_21h/sc_sharing_stats_df.csv"))
 
 sc_sharing_stats_df = data.frame(
   peak_name = sc_sharing_stats$peak_name,
@@ -260,7 +260,7 @@ sc_overlapped_peaks$peak_name = str_c(sc_overlapped_peaks$seqnames,
 # Create a column to make the distinction between peaks that overlap with bulk 24h peaks
 sc_overlapped_peaks$overlap_bulk_at_24h = TRUE
 
-# Joing the two dataframes             
+# Joining the two dataframes             
 sc_sharing_stat_overlapped = full_join(sc_sharing_stats_df, sc_overlapped_peaks, by = c("seqnames","start","end","peak_name")) 
 
 # Completing overlap info column and calculate the mean
@@ -289,6 +289,7 @@ all_peaks_shared_plot = ggplot(sc_sharing_stat_overlapped, aes(x = nb_cells_shar
   ggtitle(label = "Nb cells sharing peaks distribution", 
           subtitle = paste0("All peaks (253 591), all annotation, \n median_overlap_24h_bulk_TRUE = ", median_24h_overlap,
           "\n median_overlap_24_bulk_FALSE = ", median_no24h_overlap))
+all_peaks_shared_plot
 
 save_exp_files(object = all_peaks_shared_plot, folder = "sc_vs_bulk_overlap",file_type = "plot",width = 150, height = 150)
 
@@ -309,6 +310,7 @@ sampled_peaks_shared_plot = ggplot(sc_sharing_stat_overlapped_sampled, aes(x = n
              linetype="dashed") +
     ggtitle(label = "Nb cells sharing peaks distribution", subtitle = paste0("Non-overlapping peaks were sampled to match the number \n of overlapping peaks (n = 42345 ), all annotation, \n median_overlap_24h_bulk_TRUE = ", median_24h_overlap,
           "\n median_overlap_24_bulk_FALSE = ", median_no24h_overlap))
+sampled_peaks_shared_plot
 
 save_exp_files(object = sampled_peaks_shared_plot, folder = "sc_vs_bulk_overlap",file_type = "plot",width = 300, height = 300)
 
@@ -335,7 +337,7 @@ median_24h_overlap = levels(as.factor(sc_overlapped_prom_peaks$sharing_cell_med)
 
 prom_overlap_plot = ggplot(sc_overlapped_prom_peaks, aes(x = nb_cells_sharing_this_peak, color = overlap_bulk_at_24h)) +
   geom_histogram(aes(fill = overlap_bulk_at_24h), alpha = 0.3, position = "identity") +
-  geom_vline(aes(xintercept=sharing_cell_mean, color=overlap_bulk_at_24h),
+  geom_vline(aes(xintercept=sharing_cell_med, color=overlap_bulk_at_24h),
              linetype="dashed") +
   ggtitle(
     label = "Nb cells sharing promoter peaks distribution", 
@@ -343,6 +345,7 @@ prom_overlap_plot = ggplot(sc_overlapped_prom_peaks, aes(x = nb_cells_sharing_th
     "\n Nb of peaks overlapping with prom detected in bulk ATAC =" , length(which(sc_overlapped_prom_peaks$overlap_bulk_at_24h == "yes")),", 
     \n median_overlap_24h_bulk_TRUE = ", median_24h_overlap,
           "\n median_overlap_24_bulk_FALSE = ", median_no24h_overlap))
+prom_overlap_plot
 
 save_exp_files(object = prom_overlap_plot, folder = "sc_vs_bulk_overlap", file_type = "plot",width = 300, height = 300)
 
@@ -377,18 +380,44 @@ intergenic_overlap_plot = ggplot(sc_overlapped_intergenic_peaks, aes(x = nb_cell
     "\n Nb of sc-peaks overlapping with intergenic regions detected in bulk ATAC =" , length(which(sc_overlapped_intergenic_peaks$overlap_bulk_at_24h == "yes")),", \n median_overlap_24h_bulk_TRUE = ", median_24h_overlap,
           "\n median_overlap_24_bulk_FALSE = ", median_no24h_overlap)
   )
+intergenic_overlap_plot
 
 save_exp_files(object = intergenic_overlap_plot, folder = "sc_vs_bulk_overlap", file_type = "plot",width = 300, height = 300)
 
 ```
 
-```{r}
+```{r scATACseq analysis ?}
 
 # Path to Peak cell count binary matrix
 peak_cell_count_matrix = last_file_generated(parent_folder = paste0(dir_output, "cells_peaks_statistics/"), pattern = "peak_cell_count_matrix")
 
 # Load the matrix
 peak_cell_count_matrix = loadRData(peak_cell_count_matrix)
+# peak_cell_count_matrix = loadRData(paste0(dir_output, "cells_peaks_statistics/2022_03_04_21h/peak_cell_count_matrix.rda"))
+
+###############################################
+## All peaks (all genomic annotations combined)
+###############################################
+
+## Histogram of number of peaks per cell
+nb_peaks_stats_df = colSums(peak_cell_count_matrix) # Summing rows to count number of cells sharing a peak
+nb_peaks_stats_df = as.data.frame(nb_peaks_stats_df)
+colnames(nb_peaks_stats_df) = "nb_peaks_in_this_cell"
+nb_peaks_stats_df$cell_name = rownames(nb_peaks_stats_df)
+
+save_exp_files(object = nb_peaks_stats_df, folder = "sc_vs_bulk_overlap", file_type = "csv" )
+
+plot_nb_peaks_cell = ggplot(data = nb_peaks_stats_df, aes(x = nb_peaks_in_this_cell)) +
+  geom_histogram(bins = 50, color = "black", fill = "white", alpha = 0.5) +
+  ggtitle(label = "Nb of peaks in a cell distribution",
+          subtitle = paste0("Median = ", median(nb_peaks_stats_df$nb_peaks_in_this_cell)))
+plot_nb_peaks_cell
+
+save_exp_files(object = plot_nb_peaks_cell, folder = "sc_vs_bulk_overlap", file_type = "plot",width = 200, height = 200 )
+
+######################
+## Promoter peaks only 
+######################
 
 # Promoter peaks path
 sc_prom_peaks = last_file_generated(
@@ -399,7 +428,6 @@ sc_prom_peaks = last_file_generated(
 sc_prom_peaks = read_csv2(sc_prom_peaks)
 
 # Subset only peaks found in promoter region
-
 prom_count_matrix = peak_cell_count_matrix[which(rownames(peak_cell_count_matrix) %in% sc_prom_peaks$peak_name),]
 
 ## Histogram of number of peaks per cell
@@ -414,18 +442,13 @@ plot_nb_prom_peaks_cell = ggplot(data = nb_prom_peaks_stats_df, aes(x = nb_prom_
   geom_histogram(bins = 50, color = "black", fill = "white", alpha = 0.5) +
   ggtitle(label = "Nb of peaks in a cell distribution",
           subtitle = paste0("Median = ", median(nb_prom_peaks_stats_df$nb_prom_peaks_in_this_cell)))
+plot_nb_prom_peaks_cell
 
 save_exp_files(object = plot_nb_prom_peaks_cell, folder = "sc_vs_bulk_overlap", file_type = "plot",width = 200, height = 200 )
 
-```
-
-```{r}
-
-# Path to Peak cell count binary matrix
-peak_cell_count_matrix = last_file_generated(parent_folder = paste0(dir_output, "cells_peaks_statistics/"), pattern = "peak_cell_count_matrix")
-
-# Load the matrix
-peak_cell_count_matrix = loadRData(peak_cell_count_matrix)
+########################
+## Intergenic peaks only 
+########################
 
 # intergenic peaks path
 sc_intergenic_peaks = last_file_generated(
@@ -436,7 +459,6 @@ sc_intergenic_peaks = last_file_generated(
 sc_intergenic_peaks = read_csv2(sc_intergenic_peaks)
 
 # Subset only peaks found in promoter region
-
 intergenic_count_matrix = peak_cell_count_matrix[which(rownames(peak_cell_count_matrix) %in% sc_intergenic_peaks$peak_name),]
 
 ## Histogram of number of peaks per cell
@@ -451,10 +473,21 @@ plot_nb_intergenic_peaks_cell = ggplot(data = nb_intergenic_peaks_stats_df, aes(
   geom_histogram(bins = 50, color = "black", fill = "white", alpha = 0.5) +
   ggtitle(label = "Nb of peaks in a cell distribution",
           subtitle = paste0("Median = ", median(nb_intergenic_peaks_stats_df$nb_intergenic_peaks_in_this_cell)))
-
 plot_nb_intergenic_peaks_cell
 
 save_exp_files(object = plot_nb_intergenic_peaks_cell, folder = "sc_vs_bulk_overlap", file_type = "plot",width = 200, height = 200 )
 
+```
+
+```{r Clean working space}
+rm(all_peaks_shared_plot, bulk_overlapped_peaks, bulk_peaks_24h, bulk_peaks_24h_gr)
+rm(intergenic_count_matrix, intergenic_overlap_plot, nb_intergenic_peaks_stats_df)
+rm(overlap_bulk_sc, peak_cell_count_matrix, plot_nb_intergenic_peaks_cell)
+rm(plot_nb_prom_peaks_cell, prom_count_matrix, sampled_peaks_shared_plot)
+rm(sc_intergenic_peaks, sc_overlapped_intergenic_peaks, sc_overlapped_peaks)
+rm(sc_overlapped_prom_peaks, sc_peak_24h_gr, sc_peaks_24h_df, sc_prom_peaks)
+rm(nb_prom_peaks_stats_df, prom_overlap_plot, sc_sharing_stat_overlapped, nb_peaks_stats_df)
+rm(sc_sharing_stat_overlapped_sampled, sc_sharing_stats_df, sc_sharing_stats)
+rm(median_24h_overlap, median_no24h_overlap, plot_nb_peaks_cell)
 ```
 
