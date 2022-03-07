@@ -893,13 +893,16 @@ table(clust0_gene_list == clust1_gene_list)
 rm(seurat_clust0, clust0gene, clust0_gene_list, seurat_clust1, clust1_gene, clust1_gene_list, clust)
 ```
 
-```{r, Isolate cluster specific top 200 peaks}
+```{r, Isolate cluster specific top 200 peaks - Gene analysis}
 
 # On isole les peaks du clust0 et du clust1 qui sont partagés par le plus de cellules dans le cluster et on compare les listes obtenues 
 
 ########### TRAVAIL A PARTIR DES PEAKS DES PROMOTEURS #######################
 # Attention !!! On applique ici le filtre sur les peaks pour garder que les promoteurs avant de sélectionner les 200 peaks les plus partagés
 # Si on le fait après, ça change beaucoup le nombre de peaks à extraire
+
+# Load (facultatif)
+# tab_districell_clust = read.csv2(paste0(dir_output, currentDate, "/tab_dim2-30_res.0.05_districell.csv"))
 
 tab_clust0 = tab_districell_clust %>% 
   dplyr::filter(clust == "0") %>%
@@ -908,7 +911,7 @@ tab_clust0 = tab_districell_clust %>%
   dplyr::select(-clust)
 # Tab contenant les 200 peaks les plus partagés par les cellules du cluster0
 clust0_top200 = head(tab_clust0, 200)
-clust0_top200 = as.vector(tab_clust0_top200$peak)
+clust0_top200 = as.vector(clust0_top200$peak)
 
 tab_clust1 = tab_districell_clust %>% 
   dplyr::filter(clust == "1") %>%
@@ -930,9 +933,10 @@ clust1_top200_spe = clust1_top200[(clust0_top200 == clust1_top200) != TRUE]
 gene_clust0 = ClosestFeature(seurat_obj, regions = clust0_top200_spe)
 gene_clust1 = ClosestFeature(seurat_obj, regions = clust1_top200_spe)
 
-# GO clust0
 name_correspondance = bitr(gene_clust0$gene_id, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = "org.Hs.eg.db")
 colnames(gene_clust0)[3] = "ENSEMBL"
+
+# GO clust0
 gene_clust0 = inner_join(gene_clust0, name_correspondance, by = "ENSEMBL")
 ego_clust0 <- enrichGO(gene = gene_clust0$ENTREZID,
        OrgDb         = org.Hs.eg.db,
@@ -941,11 +945,10 @@ ego_clust0 <- enrichGO(gene = gene_clust0$ENTREZID,
        pvalueCutoff  = 0.05,
        qvalueCutoff  = 0.2,
        readable      = TRUE)
-dotplot(ego_clust0, showCategory = 20)
+go_200peaks_clust0 = dotplot(ego_clust0, showCategory = 20)
+go_200peaks_clust0
 
 # GO clust1
-name_correspondance = bitr(gene_clust1$gene_id, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = "org.Hs.eg.db")
-colnames(gene_clust1)[3] = "ENSEMBL"
 gene_clust1 = inner_join(gene_clust1, name_correspondance, by = "ENSEMBL")
 ego_clust1 <- enrichGO(gene = gene_clust1$ENTREZID,
        OrgDb         = org.Hs.eg.db,
@@ -954,11 +957,18 @@ ego_clust1 <- enrichGO(gene = gene_clust1$ENTREZID,
        pvalueCutoff  = 0.05,
        qvalueCutoff  = 0.2,
        readable      = TRUE)
-dotplot(ego_clust1, showCategory = 20)
+go_200peaks_clust1 = dotplot(ego_clust1, showCategory = 20)
+go_200peaks_clust1
 
-# Clean working space 
+# Save and clean working space 
+ggsave(plot = go_200peaks_clust0, 
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_go_top200peaks_clust0.png"),
+       width = 6, height = 6)
+ggsave(plot = go_200peaks_clust1, 
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_go_top200peaks_clust1.png"),
+       width = 6, height = 6)
 rm(clust0_top200, clust0_top200_spe, clust1_top200, clust1_top200_spe, tab_clust0, tab_clust1)
-rm(ego_clust0, ego_clust1, gene_clust0, gene_clust1, name_correspondance)
+rm(ego_clust0, ego_clust1, gene_clust0, gene_clust1, name_correspondance, go_200peaks_clust0, go_200peaks_clust1)
 ```
 
 A RETRAVAILLER / COMPLETER 
@@ -969,72 +979,85 @@ A RETRAVAILLER / COMPLETER
 # https://satijalab.org/signac/reference/addchromatinmodule
 # https://github.com/timoast/signac/issues/185
 
-#######################################################
-#### Extraire la liste du top 200 gènes de CALISTA ####
-#######################################################
-
-# Extract gene list from CALISTA clusters  # on extrait la liste des 200 gènes les plus varaibles utilisés pour créer les clusters CALISTA
-# library(stringr)
-# calista_d1 = read_delim(file = paste0(dir_git, "data/Calista_results_d1.csv"), delim = "\t") %>% dplyr::select(-CELL_ID, - time, -cluster_num)
-# calista_top200_d1 = colnames(calista_d1)
-# calista_top200_d1 = str_replace_all(calista_top200_d1, pattern = "'''", replacement = "")
-# calista_top200_d1 = str_replace_all(calista_top200_d1, pattern = "; chr[:alnum:]+", replacement = "")
-# # test = noquote(test)
-# 
-# calista_d2 = read_delim(file = paste0(dir_git, "data/Calista_results_d2.csv"), delim = "\t") %>% dplyr::select(-CELL_ID, - time, -cluster_num)
-# calista_top200_d2 = colnames(calista_d2)
-# calista_top200_d2 = str_replace_all(calista_top200_d2, pattern = "'''", replacement = "")
-# calista_top200_d2 = str_replace_all(calista_top200_d2, pattern = "; chr[:alnum:]+", replacement = "")
-# 
-# # Les gènes qui permettent de faire les clusters de d1 dans calista sont totalement différent de ceux qui permettent de faire les cluster dans d2
-# table(calista_top200_d1 == calista_top200_d2) # ?
-
-# rm(calista_d1, calista_top200_d1, calista_d2, calista_top200_d2)
 
 ###############################################################
 #### Pour chaque cluster de CALISTA, extraire la liste de gènes
 ###############################################################
 
-# # Trouver des listes de gènes qui  nous intéressent, genre "souche, cellule T" ou bien même encore plus simplement les listes des gènes de chaque cluster de CALISTA (!)
-calista_clust1 = read.table(file = paste0(dir_git, "data/list_gene_cluster1_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
-calista_clust1 = as.vector(calista_clust1$x)
-calista_clust2 = read.table(file = paste0(dir_git, "data/list_gene_cluster2_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
-calista_clust2 = as.vector(calista_clust2$x)
-calista_clust3 = read.table(file = paste0(dir_git, "data/list_gene_cluster3_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
-calista_clust3 = as.vector(calista_clust3$x)
-calista_clust4 = read.table(file = paste0(dir_git, "data/list_gene_cluster4_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
-calista_clust4 = as.vector(calista_clust4$x)
-calista_clust5 = read.table(file = paste0(dir_git, "data/list_gene_cluster5_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
-calista_clust5 = as.vector(calista_clust5$x)
+# Chargement des listes de gènes 
+calista_clust1 = read.table(file = paste0(dir_git, "data/list_gene_cluster1_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "") 
+# calista_clust2 = read.table(file = paste0(dir_git, "data/list_gene_cluster2_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
+# calista_clust3 = read.table(file = paste0(dir_git, "data/list_gene_cluster3_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
+# calista_clust4 = read.table(file = paste0(dir_git, "data/list_gene_cluster4_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
+# calista_clust5 = read.table(file = paste0(dir_git, "data/list_gene_cluster5_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
+
+# Renommer la colonne pour qu'elle corresponde à celle du tableau de la BPP prom_gene_fantom
+colnames(calista_clust1) = "gene"
+# colnames(calista_clust2) = "gene"
+# colnames(calista_clust3) = "gene"
+# colnames(calista_clust4) = "gene"
+# colnames(calista_clust5) = "gene"
+
+#############################################################################
+#### Pour chaque liste de gène, associer la région correspondant au promoteur
+#############################################################################
+
+# Chargement du tableau faisant le lien entre les promoteurs FANTOM5 et les gènes associés 
+loadRData<-function(fileName){
+  #loads an RData file, and returns it
+  load(fileName)
+  get(ls()[ls()!="fileName"])
+  
+}
+prom_gene_fantom_gr = loadRData("/home/rparmentier/Documents/MARS-ATAC/data/MARS-ATAC_TF_prom_Expr_Ravi/data_fantom/prom_gene_fantom_gr.rdata")
+prom_gene_fantom_df = as.data.frame(prom_gene_fantom_gr) 
+
+# Attention, certaines façons de noter les gènes ne correspondent pas (- au lieu de .) : renommer les gènes calista
+calista_clust1 = calista_clust1 %>% dplyr::mutate(gene = str_replace_all(gene, "_", "."))
+
+## Correspondance entre gènes de CALISTA et promoteurs 
+calista_clust1_prom = left_join(calista_clust1, prom_gene_fantom_df, by = "gene")
+
+# Certains gènes n'étaient pas dans la liste de la BDD prom_gene_fantom_df : on les enlève
+calista_clust1_prom = na.omit(calista_clust1_prom)
+
+# Transformer en Grange 
+calista_clust1_gr = makeGRangesFromDataFrame(calista_clust1_prom,
+                                             seqnames.field="seqnames",
+                                             start.field="start",
+                                             end.field="end",
+                                             strand.field="strand")
+
+#######################################################################################
+#### Trouver l'overlap entre les régions des promoteurs CALISTA et les peaks de scATAC
+#######################################################################################
+
+# on fait l'intersection/overlap de ces promoteurs avec nos peaks scATAC (tous les peaks)
+overlap = findOverlaps(query = calista_clust1_gr, 
+                       subject = seurat_obj@assays$peaks@ranges)
+
+# Récupérer les peaks de scATAC qui overlappent
+peaks =  seurat_obj@assays$peaks@ranges[subjectHits(overlap)]
+peaks_name_sc_calista1 = peaks$peaks_name
 
 ###############################################################
-#### Charger le dataframe faisant le lien entre les promoteurs de FANTOM5 et les gènes
-###############################################################
-# Choper le dataframe de FANTOM qui relie les promoteurs aux gènes qu'ils régulent (rangé qqpart dans MARS-ATAC je pense)
-# Faire un GRange de ces promoteurs
-# Faire une intersection avec les peaks de scATAC (sur la totalité du tableau, pas seulement clust 0/1)
-# Récupérer les peaks de scATAC qui intersecte avec ces promoteurs
-
-# on a extrait la liste des gènes correspondant aux peaks promoteurs dans toutes les cellules scATAC
-grange = seurat_obj@assays$peaks@ranges
-grange_prom = grange[grange$FANTOM5_promoter == TRUE]
-list_peaks_prom = grange_prom$peaks_name
-gene_grange_prom = ClosestFeature(seurat_obj, regions = list_peaks_prom)
-gene_grange_prom_list = gene_grange_prom$gene_name
-
-
-###############################################################
-#### Donner ces listes de gènes à la fonction AddChromatinModule
+#### Donner ces listes de peaks à la fonction AddChromatinModule
 ###############################################################
 
-# Il faut lui donner une liste de peak !! pas une liste de gène enfin j'ai l'impression
+# Qu'est-ce qu'on lui donne ? Pas compris ce qu'on doit mettre dans la liste des features
+# Problème avec le package ChromVarR => j'arrive pas à l'installer
 AddChromatinModule(object = seurat_obj,
-                   features = list("module1" = calista_clust1, "module2" = gene_grange_prom_list), 
+                   features = list("module1"= peaks_name_sc_calista1), 
                    verbose = TRUE)
 # Espèrer que le gros cluster corresponde au cluster 2 de Calista et que le petit au cluster 3/4/5
 # Ou alors  espèrer que le gros cluster ait une signature plus "souche" que le cluster petit
 
 
+
+
+
+
+# Clean working space
 rm(calista_clust1, calista_clust2, calista_clust3, calista_clust4, calista_clust5)
 rm(gene_grange_prom, gene_grange_prom_list, list_peaks_prom)
 
