@@ -35,7 +35,7 @@ library(kableExtra)
 ```{r Working directories}
 
 dir_git = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/"
-dir_input = "~/Bureau/scATAC_raw_data/ATAC_Ctrl_MP/"
+dir_input = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/data/scATAC_raw_data/ATAC_Ctrl_MP/"
 dir_output = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/exp/complete_Seurat_procedure/"
 # currentDate <- paste0(substr(Sys.Date(), 1,4), substr(Sys.Date(),6,7), substr(Sys.Date(),9, 10))
 currentDate = "20220303"
@@ -171,6 +171,7 @@ Idents(object = seurat_obj) <- "MP"
 # Extract gene annotations from EnsDb and attach it to the seurat object (all the BDD annotations)
 # This will allow downstream function to extract gene information directly from the object instead of remote request to a server
 annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)
+# annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86, standard.chromosomes = TRUE)
 
 # change to UCSC style
 seqlevelsStyle(annotations) = "UCSC"
@@ -1043,16 +1044,72 @@ peaks_name_sc_calista1 = peaks$peaks_name
 ###############################################################
 #### Donner ces listes de peaks à la fonction AddChromatinModule
 ###############################################################
-
-# Qu'est-ce qu'on lui donne ? Pas compris ce qu'on doit mettre dans la liste des features
-# Problème avec le package ChromVarR => j'arrive pas à l'installer
-AddChromatinModule(object = seurat_obj,
-                   features = list("module1"= peaks_name_sc_calista1), 
-                   verbose = TRUE)
 # Espèrer que le gros cluster corresponde au cluster 2 de Calista et que le petit au cluster 3/4/5
 # Ou alors  espèrer que le gros cluster ait une signature plus "souche" que le cluster petit
 
 
+
+# AddChromatinModule(object = seurat_obj,
+#                    features = list("module1"= peaks_name_sc_calista1), 
+#                    genome = genome(seurat_obj),
+#                    verbose = TRUE)
+# ne fonctionne pas à cause des noms bizarres de chromosomes
+
+
+# # Créer l'objet génome 
+# # https://support.bioconductor.org/p/83588/#83698
+# library(BSgenome.Hsapiens.UCSC.hg38)
+# genome <- BSgenome.Hsapiens.UCSC.hg38
+# sequences_to_keep <- paste0("chr", c(1:22, "X", "Y", "M"))
+# stopifnot(all(sequences_to_keep %in% seqnames(genome)))
+# genome@user_seqnames <- setNames(sequences_to_keep, sequences_to_keep)
+# genome@seqinfo <- genome@seqinfo[sequences_to_keep]
+# genome
+# 
+# AddChromatinModule(object = seurat_obj,
+#                    features = list("module1"= peaks_name_sc_calista1), 
+#                    genome = genome,
+#                    verbose = TRUE)
+# ne fonctionne pas à cause des noms bizarres de chromosomes du seurat_obj
+# pas besoin d'un genome en plus car on en a déjà un de stocké dans surat_obj
+
+
+######### Essai : nettoyage de l'objet seurat_obj
+
+# Visualize grange object and chromosomes seqnames before cleaning
+# chromatin assay seqnames
+# table(seurat_obj@assays$peaks@ranges@seqnames)
+unique(as.vector(seurat_obj@assays$peaks@ranges@seqnames))
+nrow(seurat_obj) # nombre de peaks dans le chromatin assay
+nrow(as.data.frame(seurat_obj@assays$peaks@ranges))  # nombre de peaks dans le grange
+  
+# GRANGE : Keep only standard chromosomes names (1-22, X, Y, M) : option coarse, peaks with non standard chromosome name are remove
+seurat_obj@assays$peaks@ranges = keepStandardChromosomes(seurat_obj@assays$peaks@ranges, pruning.mode = "coarse")
+unique(as.vector(seurat_obj@assays$peaks@ranges@seqnames))
+nrow(as.data.frame(seurat_obj@assays$peaks@ranges))  # nombre de peaks dans le grange
+nrow(seurat_obj) # nombre de peaks dans le chromatin assay
+
+
+# CHROMATIN ASSAY : il faut enlever les peaks qui ont été enlevés
+list_peak_clean = seurat_obj@assays$peaks@ranges$peaks_name
+table(rownames(seurat_obj) %in% list_peak_clean) # il faut enlever les false
+
+
+# on enlève les peaks qui ont été viré du grange du chromatinassay
+# seurat_obj = seurat_obj[rownames(seurat_obj) %in% list_peak_clean,] # ça enlève l'assay RNA ! 
+test = seurat_obj
+test2 = subset(test, features = list_peak_clean)
+table(rownames(test2) %in% list_peak_clean)
+nrow(test2) # nombre de peaks dans le chromatin assay
+
+expr <- FetchData(object = test, vars = list_peak_clean)
+test2 = test[expr, ] # non ! ne fonctionne pas et bloque l'ordi ! 
+
+
+AddChromatinModule(object = seurat_obj,
+                   features = list("module1"= peaks_name_sc_calista1), 
+                   genome = genome(seurat_obj),  # genome stocké à l'intérieur de l'objet seurat
+                   verbose = TRUE)
 
 
 
