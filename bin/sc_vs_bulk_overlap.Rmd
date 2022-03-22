@@ -91,6 +91,14 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
         width = width,
         height = height,
         units = "mm")
+      
+        ggsave(
+        object,
+        filename = paste0(dir_output, folder, "/", syst_time, "/", deparse(substitute(object)),".pdf"),
+        width = width,
+        height = height,
+        units = "mm")
+        
     }
     
     else{
@@ -101,6 +109,13 @@ save_exp_files = function(object, folder, file_type=c("rda","csv","plot"), width
       ggsave(
         object,
         filename = paste0(new_dir, "/" , deparse(substitute(object)), ".svg"),
+        width = width,
+        height = height,
+        units = "mm")
+      
+      ggsave(
+        object,
+        filename = paste0(new_dir, "/" , deparse(substitute(object)), ".pdf"),
         width = width,
         height = height,
         units = "mm")
