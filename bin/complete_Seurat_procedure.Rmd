@@ -37,8 +37,8 @@ library(kableExtra)
 dir_git = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/"
 dir_input = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/data/scATAC_raw_data/ATAC_Ctrl_MP/"
 dir_output = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/exp/complete_Seurat_procedure/"
-# currentDate <- paste0(substr(Sys.Date(), 1,4), substr(Sys.Date(),6,7), substr(Sys.Date(),9, 10))
-currentDate = "20220303"
+currentDate <- paste0(substr(Sys.Date(), 1,4), substr(Sys.Date(),6,7), substr(Sys.Date(),9, 10))
+# currentDate = "20220303"
 dir.create(path = paste0(dir_output, currentDate))
 
 # à effacer quand code fini (redondant avec partie préprocessing)
@@ -137,41 +137,12 @@ Idents(object = seurat_obj) <- "MP"
 
 ```
 
-```{r, Clean Seurat Grange from non standard chromosome names, eval = FALSE}
-
-# pose des problèmes avec le clustering ! 
-# quand on fait cela, on n'a plus le même nombre de peaks entre le grange et le chromatinAssay
-# on obtient l'erreur subscript is a logical vector with out-of-bounds TRUE values
-
-
-# https://www.biostars.org/p/9466838/
-# https://kasperdanielhansen.github.io/genbioconductor/html/GenomicRanges_seqinfo.html
-# https://web.mit.edu/~r/current/arch/i386_linux26/lib/R/library/GenomeInfoDb/html/seqinfo.html
-
-# Visualize grange object and chromosomes seqnames before cleaning
-# table(seurat_obj@assays$peaks@ranges@seqnames)
-# seurat_obj@assays$peaks@ranges
-# 
-# # Keep only standard chromosomes names (1-22, X, Y, M) : option coarse, peaks with non standard chromosome name are remove
-# seurat_obj@assays$peaks@ranges = keepStandardChromosomes(seurat_obj@assays$peaks@ranges, pruning.mode = "coarse")
-# test = seurat_obj
-# test = keepStandardChromosomes(seurat_obj)
-
-# # Visualize grange object and chromosomes seqnames after cleaning
-# table(seurat_obj@assays$peaks@ranges@seqnames)
-# seurat_obj@assays$peaks@ranges
-
-
-# Passage d'un Grange à 165 599 features à 165 559 features (=peaks) => 40 peaks ont été enlevés (très peu donc pas de biais)
-```
-
 ```{r, Add annotation file, warning=FALSE, message=FALSE}
 
 # Needed for TSS Enrichment (quality control function)
 # Extract gene annotations from EnsDb and attach it to the seurat object (all the BDD annotations)
 # This will allow downstream function to extract gene information directly from the object instead of remote request to a server
 annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)
-# annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86, standard.chromosomes = TRUE)
 
 # change to UCSC style
 seqlevelsStyle(annotations) = "UCSC"
@@ -233,6 +204,40 @@ seurat_obj@assays$peaks@ranges
 
 # Clean working space
 rm(annotations, all_annotations, sub_annot, metadata, annotations_types, overlaps, i)
+
+```
+
+```{r, Clean Seurat Grange from non standard chromosome names, eval = FALSE}
+
+# ATTENTION !!! La fonction keepStandardChromosome ne s'applique que sur le Grange stocké dans l'objet seurat.
+# On se retrouve alors avec un nombre différent de peaks dans le grange et dans la matrice de count du chromatin assay.
+# Il faut donc égaliser le nombre de peak à la main sinon on a des erreurs lors du clustering (subscript is a logical vector with out-of-bounds TRUE values)
+# https://www.biostars.org/p/9466838/
+# https://kasperdanielhansen.github.io/genbioconductor/html/GenomicRanges_seqinfo.html
+# https://web.mit.edu/~r/current/arch/i386_linux26/lib/R/library/GenomeInfoDb/html/seqinfo.html
+
+
+#### Visualize grange object and chromosomes seqnames before cleaning
+print(paste0("Peaks number in grange : ", nrow(as.data.frame(seurat_obj@assays$peaks@ranges))))
+print(unique(as.vector(seurat_obj@assays$peaks@ranges@seqnames)))
+print(paste0("Peaks number in matrix count of chromatin assay : ", nrow(seurat_obj)))
+
+#### Keep only standard chromosomes names in grange object (1-22, X, Y, M) : option coarse, peaks with non standard chromosome name are remove
+seurat_obj@assays$peaks@ranges = keepStandardChromosomes(seurat_obj@assays$peaks@ranges, pruning.mode = "coarse")
+print(paste0("Peaks number in grange : ", nrow(as.data.frame(seurat_obj@assays$peaks@ranges))))
+print(unique(as.vector(seurat_obj@assays$peaks@ranges@seqnames)))
+print(paste0("Peaks number in matrix count of chromatin assay : ", nrow(seurat_obj)))
+
+#### Keep same list of peaks in matrix count of chromatin assay
+list_peak_clean = seurat_obj@assays$peaks@ranges$peaks_name
+table(rownames(seurat_obj) %in% list_peak_clean) # il faut enlever les false
+seurat_obj = subset(seurat_obj, features = list_peak_clean) # attention, fonctionne ici car on a un seul assay
+
+# # Visualize grange object and chromosomes seqnames after cleaning
+print(paste0("Peaks number in grange : ", nrow(as.data.frame(seurat_obj@assays$peaks@ranges))))
+print(unique(as.vector(seurat_obj@assays$peaks@ranges@seqnames)))
+print(paste0("Peaks number in matrix count of chromatin assay : ", nrow(seurat_obj)))
+# Passage d'un Grange à 165 599 features à 165 559 features (=peaks) => 40 peaks ont été enlevés (très peu donc pas de biais)
 
 ```
 
@@ -354,7 +359,9 @@ dims_choice = c(2:30)
 dims_choice_char = "2-30"
 
 # Save and clean working directory
-ggsave(plot = plot_dim_depth | plot_dim_elb, filename = paste0(dir_output, currentDate, "/plot_preprocess_dim.png"), width = 18, height = 6)
+ggsave(plot = plot_dim_depth | plot_dim_elb, 
+       filename = paste0(dir_output, currentDate, "/plot_preprocess_dim.png"), 
+       width = 18, height = 6)
 rm(plot_dim_elb, plot_dim_depth)
 ```
 fichier downsampled : Coude observé entre 5 et 10 dimensions. pour la suite, on travaille avec 10 dimensions. 
@@ -410,6 +417,12 @@ plot_resolution
 ggsave(plot = plot_resolution, 
        filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_resolution.png"), 
        width = 18, height = 10)
+
+# Save figure for article : res 0.05, pdf format to be modified with inkscape
+ggsave(plot = DimPlot(seurat_obj, reduction = "umap", group.by = "peaks_snn_res.0.05") + ggtitle("Resolution_0.05"),
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_res0,05.pdf"), 
+       width = 9, height = 6)
+
 rm(plot_resolution, res)
 ```
 
@@ -642,7 +655,7 @@ rm(temp_bulkpeaks, temp_distripeaks, peaks_name_list, clust, seurat_clust, i, ex
 
 ```
 
-```{r, Peaks distribution per cell across clusters - visualization, results = 'hold', fig.width=20, fig.height=12}
+```{r, Peaks distribution per cell across clusters - visualization, results = 'hold', fig.width=20, fig.height=6}
 
 # load files (facultatif)
 # tab_bulkpeaks_clust = read_csv2(paste0(dir_output, currentDate, "/tab_dim", dims_choice_char, "_", res, "_bulkpeaks.csv"))
@@ -692,6 +705,31 @@ ggsave(plot = plot_bulkpeak,
 ggsave(plot = plot_distripeak,
        filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_distri_peak_annot_clust.png"),
        width = 16, height = 10)
+
+# Save plot for article 
+plot_article_total = ggplot(tab_plot %>% filter(peaks_category == "total_peaks"), aes(x=total_nbpeaks_percell, fill=clust)) +
+  geom_histogram(bins = 50, color = "black", alpha = 0.5) +
+  geom_vline(aes(xintercept = median_nbpeaks_percell, col=clust), linetype = "dashed", size = 1) +
+  ylab(label = "CELL COUNT") +
+  xlab(label = "NBPEAKS PER CELL") +
+  ggtitle(label = "TOTAL PEAKS")
+plot_article_prom = ggplot(tab_plot %>% filter(peaks_category == "peaks_FANTOM5_promoter"), aes(x=total_nbpeaks_percell, fill=clust)) +
+  geom_histogram(bins = 50, color = "black", alpha = 0.5) +
+  geom_vline(aes(xintercept = median_nbpeaks_percell, col=clust), linetype = "dashed", size = 1) +
+  ylab(label = "CELL COUNT") +
+  xlab(label = "NBPEAKS PER CELL") +
+  ggtitle(label = "PEAKS SPANNING PROMOTERS")
+plot_article_intergenic = ggplot(tab_plot %>% filter(peaks_category == "peaks_Intergenic"), aes(x=total_nbpeaks_percell, fill=clust)) +
+  geom_histogram(bins = 50, color = "black", alpha = 0.5) +
+  geom_vline(aes(xintercept = median_nbpeaks_percell, col=clust), linetype = "dashed", size = 1) +
+  ylab(label = "CELL COUNT") +
+  xlab(label = "NBPEAKS PER CELL") +
+  ggtitle(label = "PEAKS FROM INTERGENIC REGION")
+
+ggsave(plot = plot_article_total | plot_article_prom | plot_article_intergenic,
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_", res, "_distri_peak_annot_clust_article.pdf"),
+       width = 16, height = 4)
+
 ```
 
 ```{r, Peaks distribution per cell across clusters - Focus Clust0_1 Inter_Prom, results = 'hold', fig.width=20, fig.height=10}
@@ -891,7 +929,7 @@ clust1_gene_list = as.vector(clust1_gene$gene_name)
 # pb : tous les gènes sont représentés dans les deux clusters, il faut s'intéresser aux proportions d'accessibilité
 table(clust0_gene_list == clust1_gene_list)
 
-rm(seurat_clust0, clust0gene, clust0_gene_list, seurat_clust1, clust1_gene, clust1_gene_list, clust)
+rm(seurat_clust0, clust0_gene, clust0_gene_list, seurat_clust1, clust1_gene, clust1_gene_list, clust)
 ```
 
 ```{r, Isolate cluster specific top 200 peaks - Gene analysis}
@@ -903,7 +941,7 @@ rm(seurat_clust0, clust0gene, clust0_gene_list, seurat_clust1, clust1_gene, clus
 # Si on le fait après, ça change beaucoup le nombre de peaks à extraire
 
 # Load (facultatif)
-# tab_districell_clust = read.csv2(paste0(dir_output, currentDate, "/tab_dim2-30_res.0.05_districell.csv"))
+tab_districell_clust = read.csv2(paste0(dir_output, currentDate, "/tab_dim2-30_res.0.05_districell.csv"))
 
 tab_clust0 = tab_districell_clust %>% 
   dplyr::filter(clust == "0") %>%
@@ -934,10 +972,9 @@ clust1_top200_spe = clust1_top200[(clust0_top200 == clust1_top200) != TRUE]
 gene_clust0 = ClosestFeature(seurat_obj, regions = clust0_top200_spe)
 gene_clust1 = ClosestFeature(seurat_obj, regions = clust1_top200_spe)
 
+# GO clust0
 name_correspondance = bitr(gene_clust0$gene_id, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = "org.Hs.eg.db")
 colnames(gene_clust0)[3] = "ENSEMBL"
-
-# GO clust0
 gene_clust0 = inner_join(gene_clust0, name_correspondance, by = "ENSEMBL")
 ego_clust0 <- enrichGO(gene = gene_clust0$ENTREZID,
        OrgDb         = org.Hs.eg.db,
@@ -950,6 +987,8 @@ go_200peaks_clust0 = dotplot(ego_clust0, showCategory = 20)
 go_200peaks_clust0
 
 # GO clust1
+name_correspondance = bitr(gene_clust1$gene_id, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = "org.Hs.eg.db")
+colnames(gene_clust1)[3] = "ENSEMBL"
 gene_clust1 = inner_join(gene_clust1, name_correspondance, by = "ENSEMBL")
 ego_clust1 <- enrichGO(gene = gene_clust1$ENTREZID,
        OrgDb         = org.Hs.eg.db,
@@ -975,71 +1014,85 @@ rm(ego_clust0, ego_clust1, gene_clust0, gene_clust1, name_correspondance, go_200
 A RETRAVAILLER / COMPLETER 
 
 
-```{r AddChromatinModule}
+```{r, AddChromatinModule, results = 'hold', fig.width=20, fig.height=16}
 
 # https://satijalab.org/signac/reference/addchromatinmodule
 # https://github.com/timoast/signac/issues/185
 
-
-###############################################################
-#### Pour chaque cluster de CALISTA, extraire la liste de gènes
-###############################################################
-
-# Chargement des listes de gènes 
-calista_clust1 = read.table(file = paste0(dir_git, "data/list_gene_cluster1_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "") 
-# calista_clust2 = read.table(file = paste0(dir_git, "data/list_gene_cluster2_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
-# calista_clust3 = read.table(file = paste0(dir_git, "data/list_gene_cluster3_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
-# calista_clust4 = read.table(file = paste0(dir_git, "data/list_gene_cluster4_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
-# calista_clust5 = read.table(file = paste0(dir_git, "data/list_gene_cluster5_Pearson_cutoff_0.7_MinCell_5_donor1.csv"), sep = "")
-
-# Renommer la colonne pour qu'elle corresponde à celle du tableau de la BPP prom_gene_fantom
-colnames(calista_clust1) = "gene"
-# colnames(calista_clust2) = "gene"
-# colnames(calista_clust3) = "gene"
-# colnames(calista_clust4) = "gene"
-# colnames(calista_clust5) = "gene"
-
-#############################################################################
-#### Pour chaque liste de gène, associer la région correspondant au promoteur
-#############################################################################
-
-# Chargement du tableau faisant le lien entre les promoteurs FANTOM5 et les gènes associés 
 loadRData<-function(fileName){
   #loads an RData file, and returns it
   load(fileName)
   get(ls()[ls()!="fileName"])
   
 }
-prom_gene_fantom_gr = loadRData("/home/rparmentier/Documents/MARS-ATAC/data/MARS-ATAC_TF_prom_Expr_Ravi/data_fantom/prom_gene_fantom_gr.rdata")
-prom_gene_fantom_df = as.data.frame(prom_gene_fantom_gr) 
 
-# Attention, certaines façons de noter les gènes ne correspondent pas (- au lieu de .) : renommer les gènes calista
-calista_clust1 = calista_clust1 %>% dplyr::mutate(gene = str_replace_all(gene, "_", "."))
+extract_peak_calista = function(dir_tab_calista, dir_prom_gene_fantom_gr, seurat_obj) {
+  
+  ###############################################################
+  #### Pour chaque cluster de CALISTA, extraire la liste de gènes
+  ###############################################################
+  
+  # Chargement des listes de gènes 
+  calista_clust = read.table(dir_tab_calista, sep = "")
+  # Renommer la colonne pour qu'elle corresponde à celle du tableau de la BDD prom_gene_fantom
+  colnames(calista_clust) = "gene"
+  
+  #############################################################################
+  #### Pour chaque liste de gène, associer la région correspondant au promoteur
+  #############################################################################
+  
+  # Chargement du tableau faisant le lien entre les promoteurs FANTOM5 et les gènes associés 
+  prom_gene_fantom_gr = loadRData(dir_prom_gene_fantom_gr)
+  prom_gene_fantom_df = as.data.frame(prom_gene_fantom_gr) 
+  
+  # Attention, certaines façons de noter les gènes ne correspondent pas (- au lieu de .) : renommer les gènes calista
+  calista_clust = calista_clust %>% dplyr::mutate(gene = str_replace_all(gene, "_", "."))
 
-## Correspondance entre gènes de CALISTA et promoteurs 
-calista_clust1_prom = left_join(calista_clust1, prom_gene_fantom_df, by = "gene")
+  ## Correspondance entre gènes de CALISTA et promoteurs 
+  calista_clust_prom = left_join(calista_clust, prom_gene_fantom_df, by = "gene")
 
-# Certains gènes n'étaient pas dans la liste de la BDD prom_gene_fantom_df : on les enlève
-calista_clust1_prom = na.omit(calista_clust1_prom)
+  # Certains gènes n'étaient pas dans la liste de la BDD prom_gene_fantom_df : on les enlève
+  calista_clust_prom = na.omit(calista_clust_prom)
 
-# Transformer en Grange 
-calista_clust1_gr = makeGRangesFromDataFrame(calista_clust1_prom,
+  # Transformer en Grange 
+  calista_clust_gr = makeGRangesFromDataFrame(calista_clust_prom,
                                              seqnames.field="seqnames",
                                              start.field="start",
                                              end.field="end",
                                              strand.field="strand")
 
-#######################################################################################
-#### Trouver l'overlap entre les régions des promoteurs CALISTA et les peaks de scATAC
-#######################################################################################
+  #######################################################################################
+  #### Trouver l'overlap entre les régions des promoteurs CALISTA et les peaks de scATAC
+  #######################################################################################
 
-# on fait l'intersection/overlap de ces promoteurs avec nos peaks scATAC (tous les peaks)
-overlap = findOverlaps(query = calista_clust1_gr, 
-                       subject = seurat_obj@assays$peaks@ranges)
+  # on fait l'intersection/overlap de ces promoteurs avec nos peaks scATAC (tous les peaks)
+  overlap = findOverlaps(query = calista_clust_gr, 
+                         subject = seurat_obj@assays$peaks@ranges)
 
-# Récupérer les peaks de scATAC qui overlappent
-peaks =  seurat_obj@assays$peaks@ranges[subjectHits(overlap)]
-peaks_name_sc_calista1 = peaks$peaks_name
+  # Récupérer les peaks de scATAC qui overlappent
+  peaks =  seurat_obj@assays$peaks@ranges[subjectHits(overlap)]
+  peaks_name_sc_calista = peaks$peaks_name
+  return(peaks_name_sc_calista)
+
+}
+
+dir_prom_gene_fantom_gr = "/home/rparmentier/Documents/MARS-ATAC/data/MARS-ATAC_TF_prom_Expr_Ravi/data_fantom/prom_gene_fantom_gr.rdata"
+  
+list_features = list("calista1"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster1_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = seurat_obj),
+                     "calista2"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster2_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = seurat_obj),
+                     "calista3"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster3_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = seurat_obj),
+                     "calista4"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster4_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = seurat_obj),
+                     "calista5"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster5_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = seurat_obj))
 
 ###############################################################
 #### Donner ces listes de peaks à la fonction AddChromatinModule
@@ -1047,74 +1100,26 @@ peaks_name_sc_calista1 = peaks$peaks_name
 # Espèrer que le gros cluster corresponde au cluster 2 de Calista et que le petit au cluster 3/4/5
 # Ou alors  espèrer que le gros cluster ait une signature plus "souche" que le cluster petit
 
+seurat_obj = AddChromatinModule(object = seurat_obj,
+                                features = list_features, 
+                                genome = genome(seurat_obj),  # genome stocké à l'intérieur de l'objet seurat
+                                verbose = TRUE)
 
+plot_calista_umap = FeaturePlot(object = seurat_obj,
+                                features = c("calista1", "calista2", "calista3", "calista4", "calista5"),
+                                cols = c("red", "blue"),
+                                keep.scale = "all")
+plot_calista_umap
 
-# AddChromatinModule(object = seurat_obj,
-#                    features = list("module1"= peaks_name_sc_calista1), 
-#                    genome = genome(seurat_obj),
-#                    verbose = TRUE)
-# ne fonctionne pas à cause des noms bizarres de chromosomes
+# Save object and clean working space
+ggsave(plot = plot_calista_umap,
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_umap_calista.png"),
+       width = 12, height = 16)
 
+ggsave(plot = plot_calista_umap,
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_umap_calista.pdf"),
+       width = 16, height = 20)
 
-# # Créer l'objet génome 
-# # https://support.bioconductor.org/p/83588/#83698
-# library(BSgenome.Hsapiens.UCSC.hg38)
-# genome <- BSgenome.Hsapiens.UCSC.hg38
-# sequences_to_keep <- paste0("chr", c(1:22, "X", "Y", "M"))
-# stopifnot(all(sequences_to_keep %in% seqnames(genome)))
-# genome@user_seqnames <- setNames(sequences_to_keep, sequences_to_keep)
-# genome@seqinfo <- genome@seqinfo[sequences_to_keep]
-# genome
-# 
-# AddChromatinModule(object = seurat_obj,
-#                    features = list("module1"= peaks_name_sc_calista1), 
-#                    genome = genome,
-#                    verbose = TRUE)
-# ne fonctionne pas à cause des noms bizarres de chromosomes du seurat_obj
-# pas besoin d'un genome en plus car on en a déjà un de stocké dans surat_obj
-
-
-######### Essai : nettoyage de l'objet seurat_obj
-
-# Visualize grange object and chromosomes seqnames before cleaning
-# chromatin assay seqnames
-# table(seurat_obj@assays$peaks@ranges@seqnames)
-unique(as.vector(seurat_obj@assays$peaks@ranges@seqnames))
-nrow(seurat_obj) # nombre de peaks dans le chromatin assay
-nrow(as.data.frame(seurat_obj@assays$peaks@ranges))  # nombre de peaks dans le grange
-  
-# GRANGE : Keep only standard chromosomes names (1-22, X, Y, M) : option coarse, peaks with non standard chromosome name are remove
-seurat_obj@assays$peaks@ranges = keepStandardChromosomes(seurat_obj@assays$peaks@ranges, pruning.mode = "coarse")
-unique(as.vector(seurat_obj@assays$peaks@ranges@seqnames))
-nrow(as.data.frame(seurat_obj@assays$peaks@ranges))  # nombre de peaks dans le grange
-nrow(seurat_obj) # nombre de peaks dans le chromatin assay
-
-
-# CHROMATIN ASSAY : il faut enlever les peaks qui ont été enlevés
-list_peak_clean = seurat_obj@assays$peaks@ranges$peaks_name
-table(rownames(seurat_obj) %in% list_peak_clean) # il faut enlever les false
-
-
-# on enlève les peaks qui ont été viré du grange du chromatinassay
-# seurat_obj = seurat_obj[rownames(seurat_obj) %in% list_peak_clean,] # ça enlève l'assay RNA ! 
-test = seurat_obj
-test2 = subset(test, features = list_peak_clean)
-table(rownames(test2) %in% list_peak_clean)
-nrow(test2) # nombre de peaks dans le chromatin assay
-
-expr <- FetchData(object = test, vars = list_peak_clean)
-test2 = test[expr, ] # non ! ne fonctionne pas et bloque l'ordi ! 
-
-
-AddChromatinModule(object = seurat_obj,
-                   features = list("module1"= peaks_name_sc_calista1), 
-                   genome = genome(seurat_obj),  # genome stocké à l'intérieur de l'objet seurat
-                   verbose = TRUE)
-
-
-
-
-# Clean working space
 rm(calista_clust1, calista_clust2, calista_clust3, calista_clust4, calista_clust5)
 rm(gene_grange_prom, gene_grange_prom_list, list_peaks_prom)
 
