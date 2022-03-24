@@ -37,8 +37,8 @@ library(kableExtra)
 dir_git = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/"
 dir_input = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/data/scATAC_raw_data/ATAC_Ctrl_MP/"
 dir_output = "~/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/exp/complete_Seurat_procedure/"
-currentDate <- paste0(substr(Sys.Date(), 1,4), substr(Sys.Date(),6,7), substr(Sys.Date(),9, 10))
-# currentDate = "20220303"
+# currentDate <- paste0(substr(Sys.Date(), 1,4), substr(Sys.Date(),6,7), substr(Sys.Date(),9, 10))
+currentDate = "20220322"
 dir.create(path = paste0(dir_output, currentDate))
 
 # à effacer quand code fini (redondant avec partie préprocessing)
@@ -421,7 +421,7 @@ ggsave(plot = plot_resolution,
 # Save figure for article : res 0.05, pdf format to be modified with inkscape
 ggsave(plot = DimPlot(seurat_obj, reduction = "umap", group.by = "peaks_snn_res.0.05") + ggtitle("Resolution_0.05"),
        filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_res0,05.pdf"), 
-       width = 9, height = 6)
+       width = 14, height = 6)
 
 rm(plot_resolution, res)
 ```
@@ -469,7 +469,7 @@ saveRDS(object = seurat_obj, file = paste0(dir_output, currentDate, "/seurat_obj
 # .Association des peaks à l'activité du gène le plus proche
 
 ```{r, Load FACULTATIF, eval = FALSE}
-seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_preprocess_dim", , dims_choice_char,, ".rds")) 
+seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_preprocess_dim", dims_choice_char,".rds")) 
 ```
 
 ```{r, Gene activity matrix}
@@ -1107,7 +1107,7 @@ seurat_obj = AddChromatinModule(object = seurat_obj,
 
 plot_calista_umap = FeaturePlot(object = seurat_obj,
                                 features = c("calista1", "calista2", "calista3", "calista4", "calista5"),
-                                cols = c("red", "blue"),
+                                cols = c("blue", "green", "yellow", "orange", "red"),
                                 keep.scale = "all")
 plot_calista_umap
 
