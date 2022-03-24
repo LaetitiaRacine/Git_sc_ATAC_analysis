@@ -1111,6 +1111,58 @@ plot_calista_umap = FeaturePlot(object = seurat_obj,
                                 keep.scale = "all")
 plot_calista_umap
 
+
+# Moyenne des scores du clust0 vs moyenne des scores du clust1
+clust0 = readRDS("/home/rparmentier/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/exp/complete_Seurat_procedure/20220322/seurat_clust0_dim2-30_res.0.05.rds")
+list_features_clust0 = list("calista1"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster1_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = clust0),
+                     "calista2"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster2_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = clust0),
+                     "calista3"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster3_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = clust0),
+                     "calista4"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster4_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = clust0),
+                     "calista5"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster5_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = clust0))
+clust0 = AddChromatinModule(object = clust0,
+                                features = list_features_clust0, 
+                                genome = genome(clust0),  # genome stocké à l'intérieur de l'objet seurat
+                                verbose = TRUE)
+
+clust1 = readRDS("/home/rparmentier/Bureau/sc_ATAC_analysis/Git_sc_ATAC_analysis/exp/complete_Seurat_procedure/20220322/seurat_clust1_dim2-30_res.0.05.rds")
+list_features_clust1 = list("calista1"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster1_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = clust1),
+                     "calista2"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster2_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = clust1),
+                     "calista3"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster3_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = clust1),
+                     "calista4"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster4_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = clust1),
+                     "calista5"= extract_peak_calista(
+  dir_tab_calista = paste0(dir_git, "data/list_gene_cluster5_Pearson_cutoff_0.7_MinCell_5_donor1.csv"),
+  dir_prom_gene_fantom_gr = dir_prom_gene_fantom_gr,seurat_obj = clust1))
+clust1 = AddChromatinModule(object = clust1,
+                                features = list_features_clust1, 
+                                genome = genome(clust1),  # genome stocké à l'intérieur de l'objet seurat
+                                verbose = TRUE)
+
+tab_score = data.frame(cluster = c("clust0_mean_score", "clust1_mean_score", "clust0_median_score", "clust1_median_score"),
+                       calista1 = c(mean(clust0$calista1), mean(clust1$calista1), median(clust0$calista1), median(clust1$calista1)),
+                       calista2 = c(mean(clust0$calista2), mean(clust1$calista2), median(clust0$calista2), median(clust1$calista2)),
+                       calista3 = c(mean(clust0$calista3), mean(clust1$calista3), median(clust0$calista3), median(clust1$calista3)),
+                       calista4 = c(mean(clust0$calista4), mean(clust1$calista4), median(clust0$calista4), median(clust1$calista4)),
+                       calista5 = c(mean(clust0$calista5), mean(clust1$calista5), median(clust0$calista5), median(clust1$calista5)))
+tab_score
+
 # Save object and clean working space
 ggsave(plot = plot_calista_umap,
        filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_umap_calista.png"),
