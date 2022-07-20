@@ -157,10 +157,6 @@ table(mcols(Annotation(seurat_obj))$type)
 
 ```{r, Add metadata in Grange (peak name and annotation), message=FALSE, warning=F}
 
-# Ajout du nom du peak pour avoir une correspondance avec la matrix count de chromatin assay
-# Attention ! Bug un peu, j'ai du le lancer deux fois pour que la colonne s'ajoute... pk ?
-mcols(seurat_obj@assays$peaks@ranges)$peaks_name = paste0(seurat_obj@assays$peaks@ranges@seqnames, "-", seurat_obj@assays$peaks@ranges@ranges)
-
 # Load Annotation file and extract annotations levels
 all_annotations = readRDS(paste0(dir_git, "/data/Annotation_TSS_pm1kb_int_ex_53utr_ctcf_cpg_woThisto_FANTOM5_prom_gr.rds"))
 annotations_types = levels(factor(all_annotations$annotation))
@@ -198,6 +194,10 @@ mcols(seurat_obj@assays$peaks@ranges) = as_tibble(mcols(seurat_obj@assays$peaks@
   dplyr::mutate(CTCF_Intergenic = ifelse(Intergenic == TRUE & CTCF == TRUE, TRUE, FALSE)) %>%
   dplyr::mutate(CTCF_in_intron = ifelse(Introns == TRUE & CTCF == TRUE, TRUE, FALSE)) %>%
   dplyr::mutate(CTCF_in_exon = ifelse(Exons == TRUE & CTCF == TRUE, TRUE, FALSE))
+
+# Ajout du nom du peak pour avoir une correspondance avec la matrix count de chromatin assay
+# Attention ! Bug un peu, j'ai du le lancer deux fois pour que la colonne s'ajoute... pk ?
+mcols(seurat_obj@assays$peaks@ranges)$peaks_name = paste0(seurat_obj@assays$peaks@ranges@seqnames, "-", seurat_obj@assays$peaks@ranges@ranges)
 
 # Visualize grange with new metadata columns
 seurat_obj@assays$peaks@ranges
@@ -478,6 +478,7 @@ seurat_obj = readRDS(file = paste0(dir_output, currentDate, "/seurat_obj_preproc
 
 # Create a gene activity matrix based on the number of reads mapping to each in gene (gene body +2kb upstream)
 gene.activities <- GeneActivity(seurat_obj)
+# features argument : if NULL use all protein-coding genes in the annotations stored in the object
 
 # add the gene activity matrix to the Seurat object as a new assay  
 seurat_obj[['RNA']] <- CreateAssayObject(counts = gene.activities)
@@ -512,14 +513,31 @@ plot_varfeature = FeaturePlot(
 )
 plot_varfeature
 
-# Save plot and clean working space
+# Mise en évidence de peaks au niveau des gènes et promoteurs des 11 facteurs de transcription
+list_12TF = c('SMAD6', 'TAL1', 'HHEX', 'ZFPM1', 'FLI1', 'CBFA2T3', 'SPI1', 'ERG', 'RUNX1', 'GATA1', 'GATA2', 'CBFB')
+plot_11TF = FeaturePlot(
+  object = seurat_obj,
+  features = list_12TF,
+  pt.size = 0.1,
+  max.cutoff = 'q95',
+  ncol = 3,
+  cols = c('#1873CC','#1798E5','#00BFFF','#4AC596','#00CC00','#A2E700','#FFFF00','#FFD200','#FFA500')
+)
+plot_11TF
+
+# Save plots and clean working space
 ggsave(plot = plot_varfeature, 
        filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_varfeature.png"), 
        width = 18, height = 16)
-rm(gene.activities, plot_varfeature)
+ggsave(plot = plot_11TF, 
+       filename = paste0(dir_output, currentDate, "/plot_dim", dims_choice_char, "_plot11TF.pdf"), 
+       width = 18, height = 20)
+rm(gene.activities, plot_varfeature, plot_11TF)
 
 ```
-Dig if valuable to dig in this direction, using gene activity matrix ... Rudi ?
+
+
+
 
 ```{r, Save FACULTATIF}
 saveRDS(object = seurat_obj, file = paste0(dir_output, currentDate, "/seurat_obj_geneact_dim", dims_choice_char, ".rds")) 
@@ -1504,6 +1522,10 @@ dotplot(ego, showCategory = 20)
 
 
 
+
+```{r}
+sessionInfo()
+```
 
 
 
